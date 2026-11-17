@@ -1,0 +1,207 @@
+// Modelo de datos - Tutorías FRT (UTN Facultad Regional Tucumán)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STUDENT   // alumno: puede tomar clases y, si aprobó una materia, darlas
+  PROFESSOR // docente de la facultad: puede ofrecer clases
+  ADMIN     // valida comprobantes y modera
+}
+
+enum OfferingStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  PAUSED
+}
+
+enum Modality {
+  PRESENCIAL
+  VIRTUAL
+  AMBAS
+}
+
+enum BookingStatus {
+  PENDING   // solicitada por el alumno
+  CONFIRMED // aceptada por quien da la clase
+  REJECTED  // rechazada por quien da la clase
+  CANCELLED // cancelada por cualquiera antes de empezar
+  COMPLETED // marcada como dictada -> habilita puntuaciones
+}
+
+enum ReviewDirection {
+  STUDENT_TO_TUTOR
+  TUTOR_TO_STUDENT
+}
+
+model User {
+  id                 String    @id @default(uuid()) @db.Uuid
+  email              String    @unique
+  passwordHash       String
+  firstName          String
+  lastName           String
+  legajo             String?   @unique
+  phone              String?
+  bio                String?   @db.VarChar(600)
+  role               Role      @default(STUDENT)
+  isActive           Boolean   @default(true)
+  emailVerifiedAt    DateTime?
+  failedLoginCount   Int       @default(0)
+  lockedUntil        DateTime?
+
+  // Puntuaciones agregadas (desnormalizadas para ordenar búsquedas rápido)
+  tutorRatingAvg     Float     @default(0)
+  tutorRatingCount   Int       @default(0)
+  studentRatingAvg   Float     @default(0)
+  studentRatingCount Int       @default(0)
+
+  careerId           Int?
+  career             Career?   @relation(fields: [careerId], references: [id])
+
+  offerings          Offering[]
+  bookingsAsStudent  Booking[]       @relation("StudentBookings")
+  reviewsWritten     Review[]        @relation("ReviewAuthor")
+  reviewsReceived    Review[]        @relation("ReviewTarget")
+  refreshTokens      RefreshToken[]
+  emailTokens        EmailToken[]
+  auditLogs          AuditLog[]
+
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+
+model Career {
+  id       Int       @id @default(autoincrement())
+  name     String    @unique
+  code     String    @unique
+  subjects Subject[]
+  users    User[]
+}
+
+model Subject {
+  id        Int        @id @default(autoincrement())
+  name      String
+  code      String     @unique
+  year      Int        // nivel / año de la carrera
+  careers   Career[]
+  offerings Offering[]
+
+  @@index([name])
+}
+
+// Una "oferta" = una persona ofreciendo clases de una materia que ya aprobó
+model Offering {
+  id              String         @id @default(uuid()) @db.Uuid
+  tutorId         String         @db.Uuid
+  tutor           User           @relation(fields: [tutorId], references: [id], onDelete: Cascade)
+  subjectId       Int
+  subject         Subject        @relation(fields: [subjectId], references: [id])
+  pricePerHour    Decimal        @db.Decimal(10, 2)
+  modality        Modality
+  description     String         @db.VarChar(1000)
+  finalGrade      Int            // nota con la que aprobó (4 a 10)
+  approvedAt      DateTime       // fecha de aprobación de la materia
+  proofFileName   String?        // archivo privado (analítico / certificado)
+  proofMimeType   String?
+  status          OfferingStatus @default(PENDING_REVIEW)
+  reviewNote      String?        @db.VarChar(500)
+  reviewedById    String?        @db.Uuid
+  reviewedAt      DateTime?
+  bookings        Booking[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@unique([tutorId, subjectId])
+  @@index([subjectId, status])
+}
+
+model Booking {
+  id              String        @id @default(uuid()) @db.Uuid
+  offeringId      String        @db.Uuid
+  offering        Offering      @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+  studentId       String        @db.Uuid
+  student         User          @relation("StudentBookings", fields: [studentId], references: [id], onDelete: Cascade)
+  scheduledAt     DateTime
+  durationMinutes Int
+  priceAgreed     Decimal       @db.Decimal(10, 2)
+  message         String?       @db.VarChar(500)
+  status          BookingStatus @default(PENDING)
+  cancelledById   String?       @db.Uuid
+  reviews         Review[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([studentId, status])
+  @@index([offeringId, scheduledAt])
+}
+
+// Puntuación bidireccional: solo existe sobre una clase COMPLETED, una por autor
+model Review {
+  id          String          @id @default(uuid()) @db.Uuid
+  bookingId   String          @db.Uuid
+  booking     Booking         @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  authorId    String          @db.Uuid
+  author      User            @relation("ReviewAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  targetId    String          @db.Uuid
+  target      User            @relation("ReviewTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  direction   ReviewDirection
+  rating      Int             // 1 a 5
+  comment     String?         @db.VarChar(500)
+  isHidden    Boolean         @default(false) // moderación
+  createdAt   DateTime        @default(now())
+
+  @@unique([bookingId, authorId])
+  @@index([targetId, direction])
+}
+
+// Refresh tokens rotativos (se guarda solo el hash)
+model RefreshToken {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @db.Uuid
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique
+  familyId   String    @db.Uuid
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  userAgent  String?
+  ip         String?
+  createdAt  DateTime  @default(now())
+
+  @@index([familyId])
+}
+
+enum EmailTokenType {
+  VERIFY_EMAIL
+  RESET_PASSWORD
+}
+
+model EmailToken {
+  id        String         @id @default(uuid()) @db.Uuid
+  userId    String         @db.Uuid
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      EmailTokenType
+  tokenHash String         @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime       @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String?  @db.Uuid
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  entity    String?
+  entityId  String?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
