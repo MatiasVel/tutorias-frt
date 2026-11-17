@@ -131,7 +131,7 @@ export class OfferingsService {
     };
     // El comprobante se guarda cifrado (AES-256-GCM) dentro de la base
     const proof = file
-      ? { mimeType: file.mimetype, sizeBytes: file.size, data: encryptBuffer(file.buffer) }
+      ? { mimeType: file.mimetype, sizeBytes: file.size, data: new Uint8Array(encryptBuffer(file.buffer)) }
       : undefined;
 
     const existing = await this.prisma.offering.findUnique({
