@@ -9,6 +9,7 @@ import { BookingStatus, OfferingStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../common/decorators/current-user.decorator';
 import { CreateBookingDto } from './dto/booking.dto';
+import { decrypt } from '../common/utils/field-crypto';
 
 const MIN_ADVANCE_MS = 60 * 60_000; // se reserva con al menos 1 hora de anticipación
 const MAX_ADVANCE_DAYS = 90;
@@ -17,8 +18,8 @@ const contactSelect = {
   id: true,
   firstName: true,
   lastName: true,
-  email: true,
-  phone: true,
+  emailEnc: true,
+  phoneEnc: true,
   tutorRatingAvg: true,
   tutorRatingCount: true,
   studentRatingAvg: true,
@@ -98,8 +99,9 @@ export class BookingsService {
     const revealContact: BookingStatus[] = [BookingStatus.CONFIRMED, BookingStatus.COMPLETED];
     return bookings.map((b) => {
       const reveal = revealContact.includes(b.status);
-      const strip = <T extends { email: string; phone: string | null }>(u: T) =>
-        reveal ? u : { ...u, email: undefined, phone: undefined };
+      // Se descifran solo si corresponde mostrarlos
+      const strip = <T extends { emailEnc: string; phoneEnc: string | null }>({ emailEnc, phoneEnc, ...u }: T) =>
+        reveal ? { ...u, email: decrypt(emailEnc), phone: decrypt(phoneEnc) } : u;
       return {
         ...b,
         student: strip(b.student),

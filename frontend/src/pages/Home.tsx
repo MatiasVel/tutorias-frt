@@ -42,15 +42,21 @@ export default function Home() {
   const totalPages = offerings.data ? Math.max(1, Math.ceil(offerings.data.total / offerings.data.pageSize)) : 1;
 
   return (
-    <div className="space-y-8">
-      <section className="rounded-3xl bg-gradient-to-br from-brand-900 to-brand-700 px-6 py-10 text-white sm:px-10">
-        <h1 className="text-2xl font-extrabold sm:text-4xl">Aprendé con quienes ya aprobaron la materia</h1>
-        <p className="mt-3 max-w-2xl text-brand-100 sm:text-lg">
-          Clases particulares entre estudiantes y docentes de la UTN Facultad Regional Tucumán. Si ya aprobaste una materia, podés
-          enseñarla y generar ingresos.
+    <div className="space-y-10">
+      {/* Hero: ocupa todo el ancho, con la tarjeta de búsqueda superpuesta (estilo institucional) */}
+      <section className="hero-bg relative -mx-4 -mt-6 px-4 pt-12 pb-28 text-white sm:-mt-10 sm:pt-20 sm:pb-36 lg:mx-[calc(50%-50vw)] lg:px-[calc(50vw-50%)]">
+        <p className="text-xs font-bold tracking-[0.25em] text-brand-500 uppercase">UTN · Facultad Regional Tucumán</p>
+        <h1 className="mt-3 max-w-3xl text-3xl leading-tight font-extrabold tracking-tight sm:text-5xl">
+          Aprendé con quienes ya aprobaron la materia
+        </h1>
+        <p className="mt-4 max-w-2xl text-zinc-300 sm:text-lg">
+          Clases particulares entre estudiantes y docentes de la facultad. Si ya aprobaste una materia, enseñala y generá ingresos.
         </p>
+      </section>
+
+      <section className="relative z-10 -mt-24 sm:-mt-28">
         <form
-          className="mt-6 flex flex-col gap-2 sm:flex-row"
+          className="card flex flex-col gap-3 border-t-4 border-t-brand-500 p-4 shadow-xl sm:flex-row sm:p-6"
           onSubmit={(e) => {
             e.preventDefault();
             setPage(1);
@@ -61,25 +67,42 @@ export default function Home() {
           <label htmlFor="q" className="sr-only">
             Buscar materia o tutor
           </label>
-          <input
-            id="q"
-            className="input flex-1 text-slate-900"
-            placeholder="Ej.: Análisis Matemático, Física, Algoritmos…"
-            value={q}
-            maxLength={80}
-            onChange={(e) => setQ(e.target.value)}
-          />
-          <button className="btn bg-amber-400 text-brand-900 hover:bg-amber-300">Buscar</button>
+          <div className="relative flex-1">
+            <svg className="pointer-events-none absolute top-1/2 left-3 h-5 w-5 -translate-y-1/2 text-zinc-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.5-3.5" />
+            </svg>
+            <input
+              id="q"
+              className="input py-3 pl-10"
+              placeholder="Buscá una materia o un tutor: Análisis Matemático, Física, Algoritmos…"
+              value={q}
+              maxLength={80}
+              onChange={(e) => setQ(e.target.value)}
+            />
+          </div>
+          <button className="btn-primary px-8 py-3">Buscar</button>
         </form>
         {!user && (
-          <p className="mt-4 text-sm text-brand-100">
-            ¿Querés dar clases?{' '}
-            <Link to="/registro" className="font-semibold text-amber-300 underline">
-              Creá tu cuenta con tu correo institucional
-            </Link>
-          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            {[
+              ['01', 'Creá tu cuenta', 'Con tu correo institucional de la FRT.'],
+              ['02', 'Reservá una clase', 'Elegí materia, día y horario con quien mejor te sirva.'],
+              ['03', 'Puntuá la experiencia', 'Alumno y tutor se califican mutuamente al finalizar.'],
+            ].map(([n, t, d]) => (
+              <div key={n} className="card flex gap-4">
+                <span className="text-2xl font-extrabold text-brand-500">{n}</span>
+                <div>
+                  <p className="font-semibold text-ink">{t}</p>
+                  <p className="text-sm text-zinc-500">{d}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </section>
+
+      <h2 className="section-title">Clases disponibles</h2>
 
       <section aria-label="Filtros" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <select
@@ -162,7 +185,7 @@ export default function Home() {
         </EmptyState>
       ) : (
         <>
-          <p className="text-sm text-slate-500">{offerings.data!.total} resultado(s)</p>
+          <p className="text-sm text-zinc-500">{offerings.data!.total} resultado(s)</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {offerings.data!.items.map((o) => (
               <OfferingCard key={o.id} o={o} />
@@ -173,7 +196,7 @@ export default function Home() {
               <button className="btn-secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>
                 Anterior
               </button>
-              <span className="text-sm text-slate-600">
+              <span className="text-sm text-zinc-600">
                 Página {page} de {totalPages}
               </span>
               <button className="btn-secondary" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>

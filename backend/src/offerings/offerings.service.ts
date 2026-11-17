@@ -9,7 +9,8 @@ import { Modality, OfferingStatus, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../common/decorators/current-user.decorator';
 import { publicUserSelect } from '../common/utils/public-user';
-import { assertRealFileType, proofPath, removeFile } from '../common/utils/upload.util';
+import { assertRealFileType } from '../common/utils/upload.util';
+import { encryptBuffer } from '../common/utils/field-crypto';
 import { CreateOfferingDto, SearchOfferingsDto, UpdateOfferingDto } from './dto/offering.dto';
 
 const publicOfferingSelect = {
@@ -103,53 +104,62 @@ export class OfferingsService {
   }
 
   async create(user: AuthUser, dto: CreateOfferingDto, file?: Express.Multer.File) {
-    try {
-      if (file) await assertRealFileType(file);
-      // Los alumnos deben acreditar que aprobaron la materia
-      if (user.role === Role.STUDENT && !file) {
-        throw new BadRequestException(
-          'Adjuntá tu analítico o certificado donde conste la materia aprobada',
-        );
-      }
-      const approvedAt = new Date(dto.approvedAt);
-      if (approvedAt > new Date()) {
-        throw new BadRequestException('La fecha de aprobación no puede ser futura');
-      }
-      const subject = await this.prisma.subject.findUnique({ where: { id: dto.subjectId } });
-      if (!subject) throw new BadRequestException('Materia inexistente');
-
-      const data = {
-        pricePerHour: dto.pricePerHour,
-        modality: dto.modality,
-        description: dto.description,
-        finalGrade: dto.finalGrade,
-        approvedAt,
-        proofFileName: file?.filename,
-        proofMimeType: file?.mimetype,
-        status: OfferingStatus.PENDING_REVIEW,
-        reviewNote: null,
-        reviewedAt: null,
-        reviewedById: null,
-      };
-
-      const existing = await this.prisma.offering.findUnique({
-        where: { tutorId_subjectId: { tutorId: user.id, subjectId: dto.subjectId } },
-      });
-      if (existing) {
-        if (existing.status !== OfferingStatus.REJECTED) {
-          throw new ConflictException('Ya tenés una oferta para esta materia');
-        }
-        // Reenvío tras un rechazo: se reemplaza el comprobante anterior
-        if (existing.proofFileName) await removeFile(proofPath(existing.proofFileName));
-        return this.prisma.offering.update({ where: { id: existing.id }, data });
-      }
-      return await this.prisma.offering.create({
-        data: { ...data, tutorId: user.id, subjectId: dto.subjectId },
-      });
-    } catch (e) {
-      await removeFile(file?.path);
-      throw e;
+    if (file) assertRealFileType(file);
+    // Los alumnos deben acreditar que aprobaron la materia
+    if (user.role === Role.STUDENT && !file) {
+      throw new BadRequestException(
+        'Adjuntá tu analítico o certificado donde conste la materia aprobada',
+      );
     }
+    const approvedAt = new Date(dto.approvedAt);
+    if (approvedAt > new Date()) {
+      throw new BadRequestException('La fecha de aprobación no puede ser futura');
+    }
+    const subject = await this.prisma.subject.findUnique({ where: { id: dto.subjectId } });
+    if (!subject) throw new BadRequestException('Materia inexistente');
+
+    const data = {
+      pricePerHour: dto.pricePerHour,
+      modality: dto.modality,
+      description: dto.description,
+      finalGrade: dto.finalGrade,
+      approvedAt,
+      status: OfferingStatus.PENDING_REVIEW,
+      reviewNote: null,
+      reviewedAt: null,
+      reviewedById: null,
+    };
+    // El comprobante se guarda cifrado (AES-256-GCM) dentro de la base
+    const proof = file
+      ? { mimeType: file.mimetype, sizeBytes: file.size, data: encryptBuffer(file.buffer) }
+      : undefined;
+
+    const existing = await this.prisma.offering.findUnique({
+      where: { tutorId_subjectId: { tutorId: user.id, subjectId: dto.subjectId } },
+    });
+    if (existing) {
+      if (existing.status !== OfferingStatus.REJECTED) {
+        throw new ConflictException('Ya tenés una oferta para esta materia');
+      }
+      // Reenvío tras un rechazo: se reemplaza el comprobante anterior
+      return this.prisma.offering.update({
+        where: { id: existing.id },
+        data: {
+          ...data,
+          proof: proof ? { upsert: { create: proof, update: proof } } : undefined,
+        },
+        select: { id: true, status: true },
+      });
+    }
+    return this.prisma.offering.create({
+      data: {
+        ...data,
+        tutorId: user.id,
+        subjectId: dto.subjectId,
+        proof: proof ? { create: proof } : undefined,
+      },
+      select: { id: true, status: true },
+    });
   }
 
   async update(user: AuthUser, id: string, dto: UpdateOfferingDto) {

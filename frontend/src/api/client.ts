@@ -21,6 +21,7 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    public code?: string,
   ) {
     super(message);
   }
@@ -47,14 +48,16 @@ async function tryRefresh(): Promise<boolean> {
 
 async function parseError(res: Response): Promise<ApiError> {
   let msg = 'Ocurrió un error inesperado';
+  let code: string | undefined;
   try {
     const body = await res.json();
     msg = Array.isArray(body.message) ? body.message.join('. ') : (body.message ?? msg);
+    code = body.code;
   } catch {
     /* respuesta sin JSON */
   }
   if (res.status === 429) msg = 'Demasiados intentos. Esperá un minuto y probá de nuevo.';
-  return new ApiError(res.status, msg);
+  return new ApiError(res.status, msg, code);
 }
 
 export async function rawRequest(path: string, init: RequestInit = {}, retry = true): Promise<Response> {

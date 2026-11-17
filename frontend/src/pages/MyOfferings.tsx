@@ -166,8 +166,8 @@ export default function MyOfferings() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-brand-900">Dar clases</h1>
-          <p className="text-sm text-slate-500">Publicá materias que ya aprobaste. Cada publicación la revisa la administración.</p>
+          <h1 className="section-title text-2xl">Dar clases</h1>
+          <p className="text-sm text-zinc-500">Publicá materias que ya aprobaste. Cada publicación la revisa la administración.</p>
         </div>
         {!showForm && (
           <button className="btn-primary" onClick={() => setShowForm(true)}>
@@ -198,11 +198,11 @@ export default function MyOfferings() {
               <div className="flex items-start justify-between gap-2">
                 <p className="font-bold">
                   {o.subject.name}
-                  {o.subject.plan && <span className="ml-1 text-xs font-normal text-slate-500">Plan {o.subject.plan.year}</span>}
+                  {o.subject.plan && <span className="ml-1 text-xs font-normal text-zinc-500">Plan {o.subject.plan.year}</span>}
                 </p>
                 <StatusBadge status={o.status} />
               </div>
-              <p className="text-sm text-slate-600">
+              <p className="text-sm text-zinc-600">
                 {money(o.pricePerHour)}/h · {modalityLabel[o.modality]} · {o._count.bookings} reserva(s)
               </p>
               {o.status === 'REJECTED' && o.reviewNote && (

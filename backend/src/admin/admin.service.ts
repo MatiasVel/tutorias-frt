@@ -1,9 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { BookingStatus, OfferingStatus } from '@prisma/client';
-import { createReadStream } from 'fs';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../common/decorators/current-user.decorator';
-import { proofPath } from '../common/utils/upload.util';
+import { blindIndex, decrypt, decryptBuffer } from '../common/utils/field-crypto';
 import { ReviewsService } from '../reviews/reviews.service';
 import { ReviewOfferingDto, UpdateUserAdminDto } from './dto/admin.dto';
 
@@ -25,8 +24,8 @@ export class AdminService {
     return { users, pendingOfferings, approvedOfferings, completedClasses };
   }
 
-  listOfferings(status: OfferingStatus = OfferingStatus.PENDING_REVIEW) {
-    return this.prisma.offering.findMany({
+  async listOfferings(status: OfferingStatus = OfferingStatus.PENDING_REVIEW) {
+    const offerings = await this.prisma.offering.findMany({
       where: { status },
       orderBy: { createdAt: 'asc' },
       take: 100,
@@ -38,27 +37,30 @@ export class AdminService {
         description: true,
         finalGrade: true,
         approvedAt: true,
-        proofFileName: true,
         reviewNote: true,
         createdAt: true,
+        proof: { select: { mimeType: true, sizeBytes: true } },
         subject: { select: { name: true, year: true, plan: { select: { year: true } } } },
         tutor: {
-          select: { id: true, firstName: true, lastName: true, email: true, legajo: true, role: true },
+          select: { id: true, firstName: true, lastName: true, emailEnc: true, legajoEnc: true, role: true },
         },
       },
     });
+    return offerings.map(({ tutor: { emailEnc, legajoEnc, ...tutor }, ...o }) => ({
+      ...o,
+      tutor: { ...tutor, email: decrypt(emailEnc), legajo: decrypt(legajoEnc) },
+    }));
   }
 
-  async getProof(id: string) {
-    const offering = await this.prisma.offering.findUnique({
-      where: { id },
-      select: { proofFileName: true, proofMimeType: true },
-    });
-    if (!offering?.proofFileName) throw new NotFoundException('Sin comprobante adjunto');
+  async getProof(admin: AuthUser, id: string) {
+    const proof = await this.prisma.proofFile.findUnique({ where: { offeringId: id } });
+    if (!proof) throw new NotFoundException('Sin comprobante adjunto');
+    await this.audit(admin, 'PROOF_VIEWED', 'Offering', id); // queda registro de quién vio el documento
+    const ext = proof.mimeType === 'application/pdf' ? 'pdf' : proof.mimeType === 'image/png' ? 'png' : 'jpg';
     return {
-      stream: createReadStream(proofPath(offering.proofFileName)),
-      mimeType: offering.proofMimeType ?? 'application/octet-stream',
-      fileName: offering.proofFileName,
+      data: decryptBuffer(Buffer.from(proof.data)),
+      mimeType: proof.mimeType,
+      fileName: `comprobante-${id}.${ext}`,
     };
   }
 
@@ -81,15 +83,16 @@ export class AdminService {
     return updated;
   }
 
-  listUsers(q?: string) {
-    return this.prisma.user.findMany({
+  async listUsers(q?: string) {
+    // Correo y legajo están cifrados: se buscan por coincidencia EXACTA mediante su índice ciego
+    const users = await this.prisma.user.findMany({
       where: q
         ? {
             OR: [
-              { email: { contains: q, mode: 'insensitive' } },
               { firstName: { contains: q, mode: 'insensitive' } },
               { lastName: { contains: q, mode: 'insensitive' } },
-              { legajo: { contains: q } },
+              { emailHash: blindIndex(q) },
+              { legajoHash: blindIndex(q) },
             ],
           }
         : undefined,
@@ -97,10 +100,10 @@ export class AdminService {
       take: 100,
       select: {
         id: true,
-        email: true,
+        emailEnc: true,
         firstName: true,
         lastName: true,
-        legajo: true,
+        legajoEnc: true,
         role: true,
         isActive: true,
         emailVerifiedAt: true,
@@ -109,6 +112,22 @@ export class AdminService {
         createdAt: true,
       },
     });
+    return users.map(({ emailEnc, legajoEnc, ...u }) => ({
+      ...u,
+      email: decrypt(emailEnc),
+      legajo: decrypt(legajoEnc),
+    }));
+  }
+
+  /** Verificación manual del correo (por ejemplo, si el mail de verificación no llegó). */
+  async verifyUserEmail(admin: AuthUser, id: string) {
+    const user = await this.prisma.user.update({
+      where: { id },
+      data: { emailVerifiedAt: new Date() },
+      select: { id: true, emailVerifiedAt: true },
+    });
+    await this.audit(admin, 'EMAIL_VERIFIED_MANUALLY', 'User', id);
+    return user;
   }
 
   async updateUser(admin: AuthUser, id: string, dto: UpdateUserAdminDto) {

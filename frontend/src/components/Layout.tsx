@@ -1,11 +1,28 @@
-import { useState } from 'react';
-import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+
+function Logo() {
+  return (
+    <Link to="/" className="flex items-center gap-3" aria-label="Tutorías FRT, inicio">
+      <img src="/favicon.svg" alt="" className="h-9 w-9" />
+      <span className="flex items-center gap-2 text-[15px] font-bold tracking-[0.18em] text-white uppercase">
+        Tutorías
+        <span className="h-4 w-px bg-zinc-600" aria-hidden="true" />
+        <span className="text-brand-500">FRT</span>
+      </span>
+    </Link>
+  );
+}
 
 export default function Layout() {
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Cierra el menú móvil al cambiar de página
+  useEffect(() => setOpen(false), [location.pathname]);
 
   const links = user
     ? [
@@ -17,46 +34,59 @@ export default function Layout() {
       ]
     : [{ to: '/', label: 'Buscar clases' }];
 
-  const navCls = ({ isActive }: { isActive: boolean }) =>
-    `block rounded-lg px-3 py-2 text-sm font-medium ${isActive ? 'bg-brand-800 text-white' : 'text-brand-100 hover:bg-brand-800 hover:text-white'}`;
+  const deskCls = ({ isActive }: { isActive: boolean }) =>
+    `relative px-3 py-2 text-[13px] font-semibold tracking-wide uppercase transition ${
+      isActive
+        ? 'text-white after:absolute after:inset-x-3 after:-bottom-[13px] after:h-[3px] after:bg-brand-500'
+        : 'text-zinc-400 hover:text-white'
+    }`;
+  const mobileCls = ({ isActive }: { isActive: boolean }) =>
+    `block rounded-lg px-3 py-3 text-sm font-semibold uppercase tracking-wide ${
+      isActive ? 'border-l-4 border-brand-500 bg-ink-soft text-white' : 'text-zinc-300 hover:bg-ink-soft'
+    }`;
 
   const handleLogout = async () => {
     await logout();
-    setOpen(false);
     navigate('/');
   };
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <a href="#contenido" className="sr-only focus:not-sr-only focus:absolute focus:p-2">
+    <div className="flex min-h-screen flex-col overflow-x-clip">
+      <a href="#contenido" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:bg-white focus:p-2">
         Saltar al contenido
       </a>
-      <header className="sticky top-0 z-30 bg-brand-900 shadow">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <Link to="/" className="flex items-center gap-2 text-white" onClick={() => setOpen(false)}>
-            <img src="/favicon.svg" alt="" className="h-8 w-8" />
-            <span className="text-lg font-bold">
-              Tutorías <span className="text-amber-400">FRT</span>
-            </span>
-          </Link>
+
+      <header className="sticky top-0 z-30 border-b border-white/5 bg-ink/95 backdrop-blur">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
+          <Logo />
 
           {/* Escritorio */}
           <nav className="hidden items-center gap-1 md:flex" aria-label="Principal">
             {links.map((l) => (
-              <NavLink key={l.to} to={l.to} end className={navCls}>
+              <NavLink key={l.to} to={l.to} end className={deskCls}>
                 {l.label}
               </NavLink>
             ))}
+            <span className="mx-2 h-6 w-px bg-zinc-700" aria-hidden="true" />
             {user ? (
-              <button onClick={handleLogout} className="ml-2 rounded-lg px-3 py-2 text-sm font-medium text-brand-100 hover:bg-brand-800">
-                Salir
-              </button>
+              <div className="flex items-center gap-3">
+                <span
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white"
+                  title={`${user.firstName} ${user.lastName}`}
+                >
+                  {user.firstName[0]}
+                  {user.lastName[0]}
+                </span>
+                <button onClick={handleLogout} className="text-[13px] font-semibold tracking-wide text-zinc-400 uppercase hover:text-white">
+                  Salir
+                </button>
+              </div>
             ) : (
               <>
-                <NavLink to="/ingresar" className={navCls}>
+                <NavLink to="/ingresar" className={deskCls}>
                   Ingresar
                 </NavLink>
-                <Link to="/registro" className="ml-2 rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-brand-900 hover:bg-amber-300">
+                <Link to="/registro" className="btn-primary ml-1 px-4 py-2 text-[13px] tracking-wide uppercase">
                   Crear cuenta
                 </Link>
               </>
@@ -65,38 +95,41 @@ export default function Layout() {
 
           {/* Botón menú móvil */}
           <button
-            className="rounded-lg p-2 text-white md:hidden"
+            className="rounded-lg p-2 text-white hover:bg-ink-soft md:hidden"
             aria-label={open ? 'Cerrar menú' : 'Abrir menú'}
             aria-expanded={open}
             onClick={() => setOpen(!open)}
           >
             <svg className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              {open ? <path d="M6 6l12 12M6 18L18 6" /> : <path d="M4 6h16M4 12h16M4 18h16" />}
+              {open ? <path d="M6 6l12 12M6 18L18 6" /> : <path d="M4 7h16M4 12h16M4 17h16" />}
             </svg>
           </button>
         </div>
 
         {/* Menú móvil */}
         {open && (
-          <nav className="space-y-1 border-t border-brand-800 px-4 pb-4 pt-2 md:hidden" aria-label="Principal móvil">
+          <nav className="space-y-1 border-t border-white/10 px-4 pt-2 pb-4 md:hidden" aria-label="Principal móvil">
             {links.map((l) => (
-              <NavLink key={l.to} to={l.to} end className={navCls} onClick={() => setOpen(false)}>
+              <NavLink key={l.to} to={l.to} end className={mobileCls}>
                 {l.label}
               </NavLink>
             ))}
             {user ? (
-              <button onClick={handleLogout} className="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-brand-100 hover:bg-brand-800">
+              <button
+                onClick={handleLogout}
+                className="block w-full rounded-lg px-3 py-3 text-left text-sm font-semibold tracking-wide text-zinc-300 uppercase hover:bg-ink-soft"
+              >
                 Salir
               </button>
             ) : (
-              <>
-                <NavLink to="/ingresar" className={navCls} onClick={() => setOpen(false)}>
+              <div className="grid grid-cols-2 gap-2 pt-2">
+                <Link to="/ingresar" className="btn border border-zinc-600 text-white">
                   Ingresar
-                </NavLink>
-                <NavLink to="/registro" className={navCls} onClick={() => setOpen(false)}>
+                </Link>
+                <Link to="/registro" className="btn-primary">
                   Crear cuenta
-                </NavLink>
-              </>
+                </Link>
+              </div>
             )}
           </nav>
         )}
@@ -106,8 +139,34 @@ export default function Layout() {
         <Outlet />
       </main>
 
-      <footer className="border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-500">
-        Tutorías FRT · Plataforma de clases entre estudiantes de la UTN Facultad Regional Tucumán
+      <footer className="border-t-4 border-brand-500 bg-ink text-zinc-400">
+        <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 text-sm sm:grid-cols-3">
+          <div className="space-y-3">
+            <Logo />
+            <p className="text-xs leading-relaxed">Clases particulares entre estudiantes y docentes de la UTN Facultad Regional Tucumán.</p>
+          </div>
+          <div>
+            <p className="mb-3 text-xs font-bold tracking-widest text-white uppercase">Plataforma</p>
+            <ul className="space-y-2">
+              <li>
+                <Link to="/" className="hover:text-white">Buscar clases</Link>
+              </li>
+              <li>
+                <Link to="/dar-clases" className="hover:text-white">Dar clases</Link>
+              </li>
+              <li>
+                <Link to="/registro" className="hover:text-white">Crear cuenta</Link>
+              </li>
+            </ul>
+          </div>
+          <div>
+            <p className="mb-3 text-xs font-bold tracking-widest text-white uppercase">Tus datos, protegidos</p>
+            <p className="text-xs leading-relaxed">
+              Contraseñas con Argon2id, datos personales cifrados con AES-256 y conexión segura. Acceso exclusivo con correo institucional.
+            </p>
+          </div>
+        </div>
+        <p className="border-t border-white/5 py-4 text-center text-xs">© {new Date().getFullYear()} Tutorías FRT</p>
       </footer>
     </div>
   );

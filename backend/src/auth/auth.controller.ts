@@ -45,6 +45,21 @@ export class AuthController {
     return this.auth.verifyEmail(dto.token);
   }
 
+  /** Dominios de correo aceptados (el frontend los muestra y valida antes de enviar). */
+  @Public()
+  @Get('config')
+  config() {
+    return { allowedEmailDomains: this.auth.allowedDomains };
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
+  @Post('resend-verification')
+  @HttpCode(200)
+  resend(@Body() dto: ForgotPasswordDto) {
+    return this.auth.resendVerification(dto.email);
+  }
+
   @Public()
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('login')

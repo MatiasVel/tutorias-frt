@@ -11,7 +11,7 @@ interface AdminOffering {
   description: string;
   finalGrade: number;
   approvedAt: string;
-  proofFileName: string | null;
+  proof: { mimeType: string; sizeBytes: number } | null;
   createdAt: string;
   subject: { name: string; year: number };
   tutor: { id: string; firstName: string; lastName: string; email: string; legajo: string | null; role: Role };
@@ -79,7 +79,7 @@ function Offerings() {
             <li key={o.id} className="card space-y-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="font-bold">
-                  {o.subject.name} <span className="font-normal text-slate-500">({o.subject.year}° año)</span>
+                  {o.subject.name} <span className="font-normal text-zinc-500">({o.subject.year}° año)</span>
                 </p>
                 <StatusBadge status={o.status} />
               </div>
@@ -87,17 +87,17 @@ function Offerings() {
                 {o.tutor.firstName} {o.tutor.lastName} · <span className="break-all">{o.tutor.email}</span>
                 {o.tutor.legajo && ` · Legajo ${o.tutor.legajo}`} · {o.tutor.role === 'PROFESSOR' ? 'Docente' : 'Alumno/a'}
               </p>
-              <p className="text-sm text-slate-600">
+              <p className="text-sm text-zinc-600">
                 Nota {o.finalGrade} · Aprobada el {new Date(o.approvedAt).toLocaleDateString('es-AR')} · {money(o.pricePerHour)}/h
               </p>
-              <p className="text-sm text-slate-700">{o.description}</p>
+              <p className="text-sm text-zinc-700">{o.description}</p>
               <div className="flex flex-wrap gap-2">
-                {o.proofFileName ? (
+                {o.proof ? (
                   <button className="btn-secondary" onClick={() => openProof(o.id)}>
                     📄 Ver comprobante
                   </button>
                 ) : (
-                  <span className="text-sm text-slate-500">Sin comprobante</span>
+                  <span className="text-sm text-zinc-500">Sin comprobante</span>
                 )}
                 {o.status === 'PENDING_REVIEW' && (
                   <>
@@ -131,6 +131,10 @@ function Users() {
       api(`/admin/users/${id}`, { method: 'PATCH', body: json(data) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-users'] }),
   });
+  const verify = useMutation({
+    mutationFn: (id: string) => api(`/admin/users/${id}/verify-email`, { method: 'PATCH' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-users'] }),
+  });
 
   return (
     <section className="space-y-4">
@@ -142,25 +146,36 @@ function Users() {
           setSearch(q);
         }}
       >
-        <input className="input" placeholder="Nombre, correo o legajo" value={q} maxLength={80} onChange={(e) => setQ(e.target.value)} />
+        <input className="input" placeholder="Nombre, o correo / legajo completos" value={q} maxLength={80} onChange={(e) => setQ(e.target.value)} />
         <button className="btn-secondary">Buscar</button>
       </form>
+      <p className="text-xs text-zinc-500">El correo y el legajo se guardan cifrados: para buscarlos escribilos completos.</p>
       {update.isError && <Alert>{(update.error as Error).message}</Alert>}
       {list.isLoading ? (
         <Spinner />
       ) : (
-        <ul className="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white">
+        <ul className="divide-y divide-zinc-100 rounded-2xl border border-zinc-200 bg-white">
           {list.data?.map((u) => (
             <li key={u.id} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <p className="font-semibold">
                   {u.firstName} {u.lastName} {!u.isActive && <span className="text-xs font-bold text-red-600">SUSPENDIDO</span>}
                 </p>
-                <p className="break-all text-sm text-slate-500">
+                <p className="break-all text-sm text-zinc-500">
                   {u.email} {u.legajo && `· ${u.legajo}`} {!u.emailVerifiedAt && '· sin verificar'}
                 </p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
+                {!u.emailVerifiedAt && (
+                  <button
+                    className="btn-secondary"
+                    onClick={() => {
+                      if (window.confirm(`¿Marcar el correo de ${u.firstName} como verificado?`)) verify.mutate(u.id);
+                    }}
+                  >
+                    Verificar correo
+                  </button>
+                )}
                 <select
                   aria-label="Rol"
                   className="input w-36"
@@ -201,20 +216,20 @@ export default function Admin() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-brand-900">Administración</h1>
+      <h1 className="section-title text-2xl">Administración</h1>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {cards.map(([label, value]) => (
           <div key={label} className="card">
-            <p className="text-xs text-slate-500">{label}</p>
-            <p className="text-2xl font-bold text-brand-900">{value ?? '—'}</p>
+            <p className="text-xs text-zinc-500">{label}</p>
+            <p className="section-title text-2xl">{value ?? '—'}</p>
           </div>
         ))}
       </div>
-      <div className="flex gap-1 rounded-xl bg-slate-200 p-1 sm:inline-flex">
+      <div className="flex gap-1 rounded-xl bg-zinc-200 p-1 sm:inline-flex">
         {(['offerings', 'users'] as const).map((t) => (
           <button
             key={t}
-            className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold sm:flex-none ${tab === t ? 'bg-white text-brand-900 shadow' : 'text-slate-600'}`}
+            className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold sm:flex-none ${tab === t ? 'bg-white text-ink shadow' : 'text-zinc-600'}`}
             onClick={() => setTab(t)}
           >
             {t === 'offerings' ? 'Publicaciones' : 'Usuarios'}

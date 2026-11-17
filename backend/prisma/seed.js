@@ -2,7 +2,35 @@
 // Es idempotente: se puede ejecutar varias veces sin duplicar datos.
 const { PrismaClient, Role } = require('@prisma/client');
 const argon2 = require('argon2');
+const { createCipheriv, createHmac, hkdfSync, randomBytes } = require('crypto');
 const isi = require('./data/planes-isi');
+
+// --- Réplica de src/common/utils/field-crypto.ts y password.util.ts (mantener sincronizado) ---
+function keys() {
+  const master = Buffer.from(process.env.DATA_ENCRYPTION_KEY ?? '', 'base64');
+  if (master.length !== 32) throw new Error('DATA_ENCRYPTION_KEY debe ser una clave de 32 bytes en base64');
+  const derive = (info) => Buffer.from(hkdfSync('sha256', master, Buffer.alloc(0), `tutorias-frt:${info}`, 32));
+  return { enc: derive('enc'), mac: derive('mac') };
+}
+function encrypt(plain) {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', keys().enc, iv);
+  const ct = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()]);
+  return ['v1', iv.toString('base64url'), cipher.getAuthTag().toString('base64url'), ct.toString('base64url')].join('.');
+}
+function blindIndex(value) {
+  return createHmac('sha256', keys().mac).update(value.trim().toLowerCase()).digest('hex');
+}
+function hashPassword(password) {
+  const pepper = process.env.PASSWORD_PEPPER;
+  return argon2.hash(password, {
+    type: argon2.argon2id,
+    memoryCost: 19456,
+    timeCost: 2,
+    parallelism: 1,
+    secret: pepper ? Buffer.from(pepper, 'utf8') : undefined,
+  });
+}
 
 const prisma = new PrismaClient();
 
@@ -95,12 +123,14 @@ async function main() {
   const email = process.env.SEED_ADMIN_EMAIL;
   const password = process.env.SEED_ADMIN_PASSWORD;
   if (email && password) {
+    const normalized = email.trim().toLowerCase();
     await prisma.user.upsert({
-      where: { email: email.toLowerCase() },
+      where: { emailHash: blindIndex(normalized) },
       update: {},
       create: {
-        email: email.toLowerCase(),
-        passwordHash: await argon2.hash(password, { type: argon2.argon2id }),
+        emailEnc: encrypt(normalized),
+        emailHash: blindIndex(normalized),
+        passwordHash: await hashPassword(password),
         firstName: 'Admin',
         lastName: 'FRT',
         role: Role.ADMIN,
