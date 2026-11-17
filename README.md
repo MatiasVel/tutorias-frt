@@ -37,28 +37,137 @@ PENDING ──aceptar──▶ CONFIRMED ──dictada──▶ COMPLETED ──
    └─rechazar─▶ REJECTED └─cancelar (antes de empezar)─▶ CANCELLED
 ```
 
-## Puesta en marcha
+## Cómo probarla paso a paso
 
-### Opción A — Docker (recomendada)
+### 1. Instalar lo necesario (una sola vez)
+
+| Herramienta | Para qué | Descarga |
+|---|---|---|
+| **Git** | Bajar el código | https://git-scm.com/downloads |
+| **Docker Desktop** | Levantar base de datos, backend y frontend con un solo comando | https://www.docker.com/products/docker-desktop |
+
+En Windows, Docker Desktop pide activar WSL 2: aceptá y reiniciá. Después abrí Docker Desktop y esperá a que diga *Engine running*.
+
+### 2. Bajar el proyecto
 
 ```bash
-cp .env.example .env          # completar claves (JWT_ACCESS_SECRET, POSTGRES_PASSWORD, etc.)
-docker compose up --build -d
-docker compose exec backend npm run seed   # carreras, materias y usuario admin
+git clone https://github.com/MatiasVel/tutorias-frt.git
+cd tutorias-frt
 ```
 
-Abrir http://localhost:8080
+### 3. Crear el archivo de configuración
 
-### Opción B — Desarrollo local
+```bash
+cp .env.example .env        # en Windows (PowerShell): copy .env.example .env
+```
 
-Requisitos: Node 22+, PostgreSQL 16.
+Abrí `.env` con cualquier editor y cambiá como mínimo:
+
+- `POSTGRES_PASSWORD` → una clave cualquiera.
+- `JWT_ACCESS_SECRET` → un texto largo y aleatorio. Podés generarlo con
+  `docker run --rm node:22-alpine node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"`
+- **Solo para probar:** dejá `ALLOWED_EMAIL_DOMAINS=` vacío. Así podés registrarte con cualquier correo
+  (por ejemplo `alumno1@prueba.com`). En producción va el dominio institucional.
+
+### 4. Levantar la plataforma
+
+```bash
+docker compose up --build -d
+```
+
+La primera vez tarda unos minutos (descarga imágenes e instala dependencias). Verificá que esté todo arriba:
+
+```bash
+docker compose ps                    # los 3 servicios deben figurar "running"
+docker compose logs -f backend       # debe aparecer "API escuchando en ..." (Ctrl+C para salir)
+```
+
+### 5. Cargar datos iniciales
+
+```bash
+docker compose exec backend npm run seed
+```
+
+Crea las carreras, las materias y el usuario administrador definido en `.env`
+(`SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`).
+
+### 6. Abrir la app
+
+👉 **http://localhost:8080** (usá `localhost`, no `127.0.0.1`, para que la sesión funcione).
+
+Para probarla en el **celular**: conectalo al mismo wifi y entrá a `http://IP-DE-TU-PC:8080`
+(sin HTTPS la sesión no se conserva al recargar la página; en producción, con HTTPS, sí).
+Para ver la vista móvil en la PC: `F12` → ícono de celular (*Toggle device toolbar*).
+
+### 7. Recorrido de prueba completo
+
+Usá dos navegadores distintos (o una ventana normal y otra de incógnito) para tener dos usuarios a la vez.
+
+| # | Quién | Qué hacer | Resultado esperado |
+|---|---|---|---|
+| 1 | Tutor | **Crear cuenta** con `tutor@prueba.com` | Mensaje "revisá tu correo" |
+| 2 | — | Correr `docker compose logs backend \| grep DEV` y abrir el enlace `/verificar-email?token=...` | "Correo confirmado" (sin SMTP los correos se muestran en el log) |
+| 3 | Tutor | Ingresar → **Dar clases** → *Publicar materia*: elegir materia, nota, fecha, precio y adjuntar un PDF o imagen | Publicación "En revisión" |
+| 4 | Admin | En el otro navegador, ingresar con el admin → **Administración** → *Ver comprobante* → **Aprobar** | Pasa a "Publicada" |
+| 5 | Alumno | Cerrar sesión del admin, crear y verificar `alumno@prueba.com` (pasos 1–2) | — |
+| 6 | Alumno | **Buscar clases** → abrir la del tutor → elegir día/hora → **Solicitar clase** | Aparece en *Mis clases* como "Pendiente" |
+| 7 | Tutor | **Mis clases** → *Clases que doy* → **Aceptar** | "Confirmada" y ambos ven el email/teléfono del otro |
+| 8 | Tutor | Cuando pase el horario de la clase → **Marcar como dictada** | "Finalizada" |
+| 9 | Ambos | **⭐ Puntuar** (1 a 5 estrellas + comentario) | La puntuación se ve en los perfiles y en el buscador |
+
+> Truco para no esperar en el paso 8: reservá una clase para dentro de 1 hora y 5 minutos y, una vez confirmada,
+> adelantá la fecha directamente en la base:
+> `docker compose exec db psql -U tutorias -d tutorias_frt -c "UPDATE \"Booking\" SET \"scheduledAt\" = now() - interval '1 hour' WHERE status = 'CONFIRMED';"`
+
+**Pruebas de seguridad rápidas:**
+
+- Ingresar 5 veces con una contraseña incorrecta → la cuenta se bloquea 15 minutos.
+- Registrarse con una contraseña débil (`123456`) → se rechaza.
+- Intentar puntuar una clase que no está finalizada → no aparece el botón y la API lo rechaza.
+- Entrar a `/admin` con un usuario común → redirige al inicio.
+- Subir un `.txt` renombrado a `.pdf` como comprobante → se rechaza.
+
+### 8. Explorar la base de datos (útil para análisis de datos)
+
+```bash
+docker compose exec db psql -U tutorias -d tutorias_frt
+```
+
+```sql
+\dt                                            -- lista de tablas
+SELECT "firstName", "tutorRatingAvg", "tutorRatingCount" FROM "User";
+SELECT status, count(*) FROM "Booking" GROUP BY status;
+```
+
+También podés conectar DBeaver o pgAdmin: descomentá `ports: ["127.0.0.1:5432:5432"]` en el servicio `db`
+de `docker-compose.yml` y volvé a correr `docker compose up -d`.
+
+### 9. Apagar / reiniciar
+
+```bash
+docker compose down        # apaga (los datos se conservan)
+docker compose down -v     # apaga y BORRA la base y los archivos subidos (empezar de cero)
+```
+
+### Problemas comunes
+
+| Síntoma | Solución |
+|---|---|
+| `port is already allocated` | Otro programa usa el puerto 8080: cambiá `"8080:80"` por `"8081:80"` en `docker-compose.yml` y actualizá `FRONTEND_URL` en `.env` |
+| Al recargar la página se cierra la sesión | Entrá por `http://localhost:8080`, no por la IP |
+| El backend se reinicia en bucle | `docker compose logs backend`: casi siempre falta una variable en `.env` |
+| Cambié el código y no se ve | `docker compose up --build -d` |
+
+### Desarrollo sin Docker (opcional)
+
+Requisitos: Node 22+ y PostgreSQL 16 instalados.
 
 ```bash
 # Backend
 cd backend
 cp .env.example .env                       # ajustar DATABASE_URL y secretos
 npm install
-npx prisma migrate dev --name init         # crea tablas y la carpeta prisma/migrations (commitearla)
+npx prisma migrate dev --name init         # crea las tablas y la carpeta prisma/migrations (subirla al repo)
 npm run seed
 npm run start:dev                          # http://localhost:3000/api
 
@@ -67,8 +176,6 @@ cd frontend
 npm install
 npm run dev                                # http://localhost:5173
 ```
-
-Sin SMTP configurado, los enlaces de verificación de correo se imprimen en la consola del backend.
 
 ## Seguridad
 
