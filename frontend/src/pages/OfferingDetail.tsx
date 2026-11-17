@@ -62,13 +62,13 @@ export default function OfferingDetail() {
           <p className="text-sm font-semibold uppercase tracking-wide text-brand-700">
             {o.subject.year}° año{o.subject.plan ? ` · Plan ${o.subject.plan.year}` : ''}
           </p>
-          <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">{o.subject.name}</h1>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600">
+          <h1 className="text-2xl font-bold text-zinc-900 sm:text-3xl">{o.subject.name}</h1>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-zinc-600">
             <span>{modalityLabel[o.modality]}</span>
             <span>Aprobada con {o.finalGrade}</span>
             <span>Aprobó el {new Date(o.approvedAt).toLocaleDateString('es-AR')}</span>
           </div>
-          <p className="whitespace-pre-line text-slate-700">{o.description}</p>
+          <p className="whitespace-pre-line text-zinc-700">{o.description}</p>
         </div>
 
         <div className="card space-y-3">
@@ -82,15 +82,15 @@ export default function OfferingDetail() {
               `${o.tutor.firstName} ${o.tutor.lastName}`
             )}
           </p>
-          {o.tutor.career && <p className="text-sm text-slate-500">{o.tutor.career.name}</p>}
+          {o.tutor.career && <p className="text-sm text-zinc-500">{o.tutor.career.name}</p>}
           <RatingDisplay avg={o.tutor.tutorRatingAvg} count={o.tutor.tutorRatingCount} size="lg" />
-          {o.tutor.bio && <p className="text-sm text-slate-700">{o.tutor.bio}</p>}
+          {o.tutor.bio && <p className="text-sm text-zinc-700">{o.tutor.bio}</p>}
         </div>
 
         <div className="card space-y-3">
           <h2 className="text-lg font-semibold">Opiniones de alumnos</h2>
           {!user ? (
-            <p className="text-sm text-slate-500">Ingresá para ver las opiniones.</p>
+            <p className="text-sm text-zinc-500">Ingresá para ver las opiniones.</p>
           ) : reviews.isLoading ? (
             <Spinner />
           ) : (
@@ -101,8 +101,8 @@ export default function OfferingDetail() {
 
       <aside className="lg:sticky lg:top-24 lg:self-start">
         <div className="card space-y-4">
-          <p className="text-3xl font-extrabold text-slate-900">
-            {money(o.pricePerHour)} <span className="text-base font-normal text-slate-500">/ hora</span>
+          <p className="text-3xl font-extrabold text-zinc-900">
+            {money(o.pricePerHour)} <span className="text-base font-normal text-zinc-500">/ hora</span>
           </p>
           {!user ? (
             <Link to="/ingresar" state={{ from: `/ofertas/${o.id}` }} className="btn-primary w-full">
@@ -128,15 +128,15 @@ export default function OfferingDetail() {
               <Field label="Mensaje (opcional)" htmlFor="msg" hint="Contá qué temas necesitás repasar.">
                 <textarea id="msg" rows={3} maxLength={500} className="input" value={message} onChange={(e) => setMessage(e.target.value)} />
               </Field>
-              <div className="flex justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
+              <div className="flex justify-between rounded-lg bg-zinc-50 px-3 py-2 text-sm">
                 <span>Total estimado</span>
                 <strong>{money((Number(o.pricePerHour) * duration) / 60)}</strong>
               </div>
-              {scheduledAt && <p className="text-xs text-slate-500">Solicitás: {dateTime(new Date(scheduledAt).toISOString())}</p>}
+              {scheduledAt && <p className="text-xs text-zinc-500">Solicitás: {dateTime(new Date(scheduledAt).toISOString())}</p>}
               <button className="btn-primary w-full" disabled={book.isPending}>
                 {book.isPending ? 'Enviando…' : 'Solicitar clase'}
               </button>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-zinc-500">
                 El pago se acuerda directamente. Los datos de contacto se muestran cuando la clase se confirma.
               </p>
             </form>

@@ -36,11 +36,12 @@ export class AdminController {
   }
 
   @Get('offerings/:id/proof')
-  async proof(@Param('id', ParseUUIDPipe) id: string) {
-    const file = await this.admin.getProof(id);
-    return new StreamableFile(file.stream, {
+  async proof(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
+    const file = await this.admin.getProof(user, id);
+    return new StreamableFile(file.data, {
       type: file.mimeType,
       disposition: `inline; filename="${file.fileName}"`,
+      length: file.data.length,
     });
   }
 
@@ -65,6 +66,11 @@ export class AdminController {
     @Body() dto: UpdateUserAdminDto,
   ) {
     return this.admin.updateUser(user, id, dto);
+  }
+
+  @Patch('users/:id/verify-email')
+  verifyEmail(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
+    return this.admin.verifyUserEmail(user, id);
   }
 
   @Patch('reviews/:id/hide')

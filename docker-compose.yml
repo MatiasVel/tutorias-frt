@@ -28,23 +28,27 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?schema=public
+      DIRECT_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?schema=public
       NODE_ENV: production
       PORT: 3000
       FRONTEND_URL: ${FRONTEND_URL}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      PASSWORD_PEPPER: ${PASSWORD_PEPPER}
+      DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY}
       JWT_ACCESS_TTL_SECONDS: 900
       REFRESH_TOKEN_TTL_DAYS: 7
       ALLOWED_EMAIL_DOMAINS: ${ALLOWED_EMAIL_DOMAINS}
-      UPLOAD_DIR: /app/uploads
+      PROFESSOR_EMAIL_DOMAINS: ${PROFESSOR_EMAIL_DOMAINS}
+      MAX_UPLOAD_MB: 3
+      BREVO_API_KEY: ${BREVO_API_KEY}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME}
+      MAIL_FROM_EMAIL: ${MAIL_FROM_EMAIL}
       SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT}
       SMTP_USER: ${SMTP_USER}
       SMTP_PASS: ${SMTP_PASS}
-      MAIL_FROM: ${MAIL_FROM}
       SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL}
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD}
-    volumes:
-      - uploads:/app/uploads
 
   frontend:
     build: ./frontend
@@ -55,4 +59,3 @@ services:
 
 volumes:
   pgdata:
-  uploads:

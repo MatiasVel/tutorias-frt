@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { AppThrottlerGuard } from './common/guards/app-throttler.guard';
 import { PrismaModule } from './prisma/prisma.module';
 import { MailModule } from './mail/mail.module';
 import { AuthModule } from './auth/auth.module';
@@ -18,8 +19,8 @@ import { HealthController } from './health.controller';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    // Límite global: 100 peticiones por minuto por IP (las rutas sensibles tienen límites propios)
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
+    // Límite global: 200 peticiones por minuto por IP (las rutas sensibles tienen límites propios)
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 200 }]),
     PrismaModule,
     MailModule,
     AuthModule,
@@ -33,7 +34,7 @@ import { HealthController } from './health.controller';
   controllers: [HealthController],
   providers: [
     // Orden: rate limit -> autenticación (todo privado por defecto) -> roles
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: AppThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],

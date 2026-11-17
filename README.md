@@ -62,13 +62,25 @@ cd tutorias-frt
 cp .env.example .env        # en Windows (PowerShell): copy .env.example .env
 ```
 
-Abrí `.env` con cualquier editor y cambiá como mínimo:
+Abrí `.env` (`notepad .env`) y completá:
 
 - `POSTGRES_PASSWORD` → una clave cualquiera.
-- `JWT_ACCESS_SECRET` → un texto largo y aleatorio. Podés generarlo con
-  `docker run --rm node:22-alpine node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"`
-- **Solo para probar:** dejá `ALLOWED_EMAIL_DOMAINS=` vacío. Así podés registrarte con cualquier correo
-  (por ejemplo `alumno1@prueba.com`). En producción va el dominio institucional.
+- Los tres secretos. Generalos en PowerShell y pegá cada resultado (el backend **no arranca** sin ellos):
+
+  ```powershell
+  # JWT_ACCESS_SECRET
+  $b = New-Object byte[] 64; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); -join ($b | % { $_.ToString('x2') })
+  # PASSWORD_PEPPER
+  $b = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); -join ($b | % { $_.ToString('x2') })
+  # DATA_ENCRYPTION_KEY
+  $b = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); [Convert]::ToBase64String($b)
+  ```
+
+- Correo: si cargás `BREVO_API_KEY` (ver [docs/DESPLIEGUE.md](docs/DESPLIEGUE.md), paso 4) los correos de verificación
+  llegan de verdad. Si lo dejás vacío, el enlace se muestra en `docker compose logs backend` (buscá `[DEV]`).
+
+Solo se aceptan correos **@alu.frt.utn.edu.ar** (alumnos) y **@doc.frt.edu.ar** (docentes; quedan con rol Docente).
+Para probar con correos inventados podés vaciar temporalmente `ALLOWED_EMAIL_DOMAINS=`.
 
 ### 4. Levantar la plataforma
 
@@ -179,15 +191,21 @@ npm install
 npm run dev                                # http://localhost:5173
 ```
 
+## Publicar en internet (gratis)
+
+Guía paso a paso con Vercel (o Netlify) + Neon + Brevo: **[docs/DESPLIEGUE.md](docs/DESPLIEGUE.md)**.
+
 ## Seguridad
 
 Ver [SECURITY.md](SECURITY.md) para el detalle. Resumen:
 
-- Contraseñas con **Argon2id**, política de complejidad y bloqueo tras 5 intentos fallidos.
+- Contraseñas con **Argon2id + pepper**, política de complejidad y bloqueo tras 5 intentos fallidos.
+- **Correo, teléfono, legajo y comprobantes cifrados con AES-256-GCM** en la base (búsqueda por índices ciegos HMAC).
+- Registro e ingreso solo con correos institucionales `@alu.frt.utn.edu.ar` / `@doc.frt.edu.ar`.
 - **JWT de acceso de 15 min en memoria** + **refresh token rotativo en cookie httpOnly / Secure / SameSite=Strict** con detección de reutilización.
 - Validación estricta de entradas (`whitelist` + `forbidNonWhitelisted`), Prisma (consultas parametrizadas → sin SQL injection).
 - Rate limiting global y por ruta sensible, Helmet, CSP, CORS restringido.
-- Subida de archivos con límite de tamaño, lista blanca de tipos y verificación de *magic bytes*; los archivos no son públicos.
+- Subida de archivos con límite de tamaño, lista blanca de tipos y verificación de *magic bytes*; se guardan cifrados y solo los ve la administración.
 - Autorización por rol y por propiedad del recurso en cada operación; auditoría de acciones sensibles.
 - CI con `npm audit` y Dependabot.
 

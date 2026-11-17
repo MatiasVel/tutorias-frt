@@ -20,6 +20,7 @@ erDiagram
     User ||--o{ Review : "escribe"
     User ||--o{ Review : "recibe"
     User ||--o{ RefreshToken : "sesiones"
+    Offering ||--o| ProofFile : "comprobante cifrado"
     User ||--o{ EmailToken : "verificación / reset"
     User |o--o{ AuditLog : "acciones"
 
@@ -52,8 +53,11 @@ erDiagram
     }
     User {
         uuid id PK
-        string email UK
-        string passwordHash "argon2id"
+        string emailEnc "AES-256-GCM"
+        string emailHash UK "HMAC (login)"
+        string phoneEnc "AES-256-GCM"
+        string legajoEnc "AES-256-GCM"
+        string passwordHash "argon2id + pepper"
         enum role "STUDENT / PROFESSOR / ADMIN"
         timestamp emailVerifiedAt "null = sin verificar"
         float tutorRatingAvg
@@ -124,8 +128,8 @@ docker compose exec db psql -U tutorias -d tutorias_frt
 ### Usuarios registrados y si confirmaron el correo
 
 ```sql
-SELECT u."email",
-       u."firstName" || ' ' || u."lastName"        AS nombre,
+SELECT u."firstName" || ' ' || u."lastName"        AS nombre,
+       left(u."emailEnc", 40) || '…'               AS correo_cifrado,
        u."role",
        c."code"                                     AS carrera,
        sp."year"                                    AS plan,
@@ -138,7 +142,9 @@ LEFT JOIN "StudyPlan" sp ON sp."id" = u."studyPlanId"
 ORDER BY u."createdAt" DESC;
 ```
 
-La contraseña **no** se ve: solo el hash Argon2id en `passwordHash` (así debe ser).
+El correo, el teléfono y el legajo se ven **cifrados** (`v1.xxxx…`) y la contraseña solo como hash Argon2id:
+así debe ser. Para ver el correo en claro usá el panel **Administración → Usuarios** de la app, que lo descifra
+con la clave del servidor. Detalle en [SECURITY.md](../SECURITY.md).
 
 ### Actividad de login (auditoría)
 

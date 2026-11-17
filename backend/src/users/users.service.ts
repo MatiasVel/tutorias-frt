@@ -2,24 +2,27 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { OfferingStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { publicUserSelect } from '../common/utils/public-user';
+import { decrypt, encrypt } from '../common/utils/field-crypto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  getMe(id: string) {
-    return this.prisma.user.findUniqueOrThrow({
+  async getMe(id: string) {
+    const { emailEnc, phoneEnc, legajoEnc, ...user } = await this.prisma.user.findUniqueOrThrow({
       where: { id },
       select: {
         ...publicUserSelect,
-        email: true,
-        phone: true,
-        legajo: true,
+        emailEnc: true,
+        phoneEnc: true,
+        legajoEnc: true,
         emailVerifiedAt: true,
         createdAt: true,
       },
     });
+    // Los datos personales se descifran solo para su dueño
+    return { ...user, email: decrypt(emailEnc), phone: decrypt(phoneEnc), legajo: decrypt(legajoEnc) };
   }
 
   async updateMe(id: string, dto: UpdateProfileDto) {
@@ -31,7 +34,11 @@ export class UsersService {
       const plan = await this.prisma.studyPlan.findUnique({ where: { id: dto.studyPlanId } });
       if (!plan) throw new BadRequestException('Plan de estudios inexistente');
     }
-    await this.prisma.user.update({ where: { id }, data: dto });
+    const { phone, ...rest } = dto;
+    await this.prisma.user.update({
+      where: { id },
+      data: { ...rest, ...(phone !== undefined ? { phoneEnc: encrypt(phone) } : {}) },
+    });
     return this.getMe(id);
   }
 

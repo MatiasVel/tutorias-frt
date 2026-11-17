@@ -41,7 +41,7 @@ export default function Profile() {
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
       <div className="card space-y-4">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-100 text-2xl font-bold text-brand-800">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-ink text-2xl font-bold text-white ring-4 ring-brand-500">
           {user.firstName[0]}
           {user.lastName[0]}
         </div>
@@ -49,8 +49,8 @@ export default function Profile() {
           <p className="text-lg font-bold">
             {user.firstName} {user.lastName}
           </p>
-          <p className="break-all text-sm text-slate-500">{user.email}</p>
-          {user.legajo && <p className="text-sm text-slate-500">Legajo {user.legajo}</p>}
+          <p className="break-all text-sm text-zinc-500">{user.email}</p>
+          {user.legajo && <p className="text-sm text-zinc-500">Legajo {user.legajo}</p>}
         </div>
         <div className="space-y-1 text-sm">
           <p className="font-semibold">Como tutor/a</p>
@@ -64,7 +64,7 @@ export default function Profile() {
       </div>
 
       <form onSubmit={submit} className="card space-y-4 lg:col-span-2">
-        <h1 className="text-xl font-bold text-brand-900">Mis datos</h1>
+        <h1 className="text-xl font-bold text-ink">Mis datos</h1>
         {msg && <Alert kind={msg.ok ? 'success' : 'error'}>{msg.text}</Alert>}
         <Field label="Carrera" htmlFor="career">
           <select

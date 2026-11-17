@@ -13,7 +13,7 @@ export function Alert({ kind = 'error', children }: { kind?: 'error' | 'success'
   const styles = {
     error: 'border-red-200 bg-red-50 text-red-800',
     success: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-    info: 'border-brand-100 bg-brand-50 text-brand-900',
+    info: 'border-brand-100 bg-brand-50 text-ink',
   }[kind];
   return (
     <div role={kind === 'error' ? 'alert' : 'status'} className={`rounded-lg border px-4 py-3 text-sm ${styles}`}>
@@ -25,8 +25,8 @@ export function Alert({ kind = 'error', children }: { kind?: 'error' | 'success'
 export function EmptyState({ title, children }: { title: string; children?: ReactNode }) {
   return (
     <div className="card py-12 text-center">
-      <p className="text-lg font-semibold text-slate-700">{title}</p>
-      {children && <div className="mt-2 text-sm text-slate-500">{children}</div>}
+      <p className="text-lg font-semibold text-zinc-700">{title}</p>
+      {children && <div className="mt-2 text-sm text-zinc-500">{children}</div>}
     </div>
   );
 }
@@ -38,23 +38,23 @@ export function Field({ label, htmlFor, hint, children }: { label: string; htmlF
         {label}
       </label>
       {children}
-      {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
+      {hint && <p className="mt-1 text-xs text-zinc-500">{hint}</p>}
     </div>
   );
 }
 
 const bookingStatus: Record<BookingStatus, [string, string]> = {
   PENDING: ['Pendiente', 'bg-amber-100 text-amber-800'],
-  CONFIRMED: ['Confirmada', 'bg-brand-100 text-brand-800'],
-  REJECTED: ['Rechazada', 'bg-slate-200 text-slate-700'],
-  CANCELLED: ['Cancelada', 'bg-slate-200 text-slate-700'],
+  CONFIRMED: ['Confirmada', 'bg-sky-100 text-sky-800'],
+  REJECTED: ['Rechazada', 'bg-zinc-200 text-zinc-700'],
+  CANCELLED: ['Cancelada', 'bg-zinc-200 text-zinc-700'],
   COMPLETED: ['Finalizada', 'bg-emerald-100 text-emerald-800'],
 };
 const offeringStatus: Record<OfferingStatus, [string, string]> = {
   PENDING_REVIEW: ['En revisión', 'bg-amber-100 text-amber-800'],
   APPROVED: ['Publicada', 'bg-emerald-100 text-emerald-800'],
   REJECTED: ['Rechazada', 'bg-red-100 text-red-800'],
-  PAUSED: ['Pausada', 'bg-slate-200 text-slate-700'],
+  PAUSED: ['Pausada', 'bg-zinc-200 text-zinc-700'],
 };
 
 export function StatusBadge({ status }: { status: BookingStatus | OfferingStatus }) {

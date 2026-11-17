@@ -5,8 +5,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") // conexión con pool (en Neon: host "-pooler")
+  directUrl = env("DIRECT_URL")   // conexión directa, usada por "prisma db push"
 }
 
 enum Role {
@@ -43,12 +44,15 @@ enum ReviewDirection {
 
 model User {
   id                 String    @id @default(uuid()) @db.Uuid
-  email              String    @unique
-  passwordHash       String
+  // Datos personales CIFRADOS con AES-256-GCM (ver src/common/utils/field-crypto.ts)
+  emailEnc           String
+  emailHash          String    @unique // HMAC-SHA256 del correo: login y unicidad sin guardarlo en claro
+  phoneEnc           String?
+  legajoEnc          String?
+  legajoHash         String?   @unique
+  passwordHash       String    // Argon2id + pepper: no se puede revertir a la contraseña
   firstName          String
   lastName           String
-  legajo             String?   @unique
-  phone              String?
   bio                String?   @db.VarChar(600)
   role               Role      @default(STUDENT)
   isActive           Boolean   @default(true)
@@ -159,8 +163,7 @@ model Offering {
   description     String         @db.VarChar(1000)
   finalGrade      Int            // nota con la que aprobó (4 a 10)
   approvedAt      DateTime       // fecha de aprobación de la materia
-  proofFileName   String?        // archivo privado (analítico / certificado)
-  proofMimeType   String?
+  proof           ProofFile?     // analítico / certificado (cifrado)
   status          OfferingStatus @default(PENDING_REVIEW)
   reviewNote      String?        @db.VarChar(500)
   reviewedById    String?        @db.Uuid
@@ -210,6 +213,17 @@ model Review {
 
   @@unique([bookingId, authorId])
   @@index([targetId, direction])
+}
+
+// Comprobante académico: se guarda CIFRADO dentro de la base (no en disco ni en un bucket público)
+model ProofFile {
+  id         String   @id @default(uuid()) @db.Uuid
+  offeringId String   @unique @db.Uuid
+  offering   Offering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+  mimeType   String
+  sizeBytes  Int
+  data       Bytes    // [iv | tag | contenido cifrado AES-256-GCM]
+  createdAt  DateTime @default(now())
 }
 
 // Refresh tokens rotativos (se guarda solo el hash)

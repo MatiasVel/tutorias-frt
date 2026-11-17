@@ -19,7 +19,7 @@ export default function UserProfile() {
   return (
     <div className="space-y-6">
       <div className="card flex flex-col gap-4 sm:flex-row sm:items-center">
-        <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-brand-100 text-3xl font-bold text-brand-800">
+        <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-ink text-3xl font-bold text-white ring-4 ring-brand-500">
           {p.firstName[0]}
           {p.lastName[0]}
         </div>
@@ -27,8 +27,8 @@ export default function UserProfile() {
           <h1 className="text-2xl font-bold">
             {p.firstName} {p.lastName}
           </h1>
-          {p.career && <p className="text-slate-500">{p.career.name}</p>}
-          {p.bio && <p className="text-slate-700">{p.bio}</p>}
+          {p.career && <p className="text-zinc-500">{p.career.name}</p>}
+          {p.bio && <p className="text-zinc-700">{p.bio}</p>}
         </div>
       </div>
 
@@ -38,9 +38,9 @@ export default function UserProfile() {
           <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {p.offerings.map((o) => (
               <li key={o.id}>
-                <Link to={`/ofertas/${o.id}`} className="block rounded-lg border border-slate-200 p-3 hover:bg-slate-50">
-                  <p className="font-semibold text-brand-800">{o.subject.name}</p>
-                  <p className="text-sm text-slate-500">
+                <Link to={`/ofertas/${o.id}`} className="block rounded-lg border border-zinc-200 p-3 hover:bg-zinc-50">
+                  <p className="font-semibold text-ink">{o.subject.name}</p>
+                  <p className="text-sm text-zinc-500">
                     {money(o.pricePerHour)}/h · {modalityLabel[o.modality]}
                   </p>
                 </Link>

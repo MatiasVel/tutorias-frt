@@ -25,7 +25,7 @@ export default function ResetPassword() {
 
   return (
     <div className="mx-auto max-w-md card space-y-4 p-6 sm:p-8">
-      <h1 className="text-2xl font-bold text-brand-900">Nueva contraseña</h1>
+      <h1 className="section-title text-2xl">Nueva contraseña</h1>
       {msg ? (
         <>
           <Alert kind="success">{msg}</Alert>

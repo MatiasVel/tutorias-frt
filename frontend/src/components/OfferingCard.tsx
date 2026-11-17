@@ -8,14 +8,14 @@ export default function OfferingCard({ o }: { o: Offering }) {
   return (
     <Link
       to={`/ofertas/${o.id}`}
-      className="card flex flex-col gap-3 transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-2 focus-visible:outline-brand-600"
+      className="card group flex flex-col gap-3 border-t-4 border-t-transparent transition hover:-translate-y-0.5 hover:border-t-brand-500 hover:shadow-lg focus-visible:outline-2 focus-visible:outline-brand-500"
     >
       <div className="flex items-center gap-3">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand-100 font-bold text-brand-800">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-ink font-bold text-white">
           {initials}
         </div>
         <div className="min-w-0">
-          <p className="truncate font-semibold text-slate-900">
+          <p className="truncate font-semibold text-zinc-900">
             {o.tutor.firstName} {o.tutor.lastName}
             {o.tutor.role === 'PROFESSOR' && (
               <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-800">Docente</span>
@@ -25,14 +25,14 @@ export default function OfferingCard({ o }: { o: Offering }) {
         </div>
       </div>
       <div>
-        <p className="text-base font-bold text-brand-900">{o.subject.name}</p>
-        <p className="text-xs text-slate-500">
+        <p className="text-base font-bold text-ink group-hover:text-brand-700">{o.subject.name}</p>
+        <p className="text-xs text-zinc-500">
           {o.subject.year}° año{o.subject.plan ? ` · Plan ${o.subject.plan.year}` : ''} · Aprobada con {o.finalGrade} · {modalityLabel[o.modality]}
         </p>
       </div>
-      <p className="line-clamp-2 text-sm text-slate-600">{o.description}</p>
-      <p className="mt-auto text-lg font-bold text-slate-900">
-        {money(o.pricePerHour)} <span className="text-sm font-normal text-slate-500">/ hora</span>
+      <p className="line-clamp-2 text-sm text-zinc-600">{o.description}</p>
+      <p className="mt-auto text-lg font-bold text-zinc-900">
+        {money(o.pricePerHour)} <span className="text-sm font-normal text-zinc-500">/ hora</span>
       </p>
     </Link>
   );

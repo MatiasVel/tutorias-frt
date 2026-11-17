@@ -1,0 +1,31 @@
+# Alternativa a Vercel para el FRONTEND (el backend se publica en Vercel).
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# Proxy de la API: el navegador habla solo con este dominio,
+# así las cookies de sesión (SameSite=Strict) funcionan sin CORS.
+[[redirects]]
+  from = "/api/*"
+  to = "https://REEMPLAZAR-CON-TU-BACKEND.vercel.app/api/:splat"
+  status = 200
+  force = true
+
+# SPA: cualquier otra ruta devuelve index.html
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-src blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+    Strict-Transport-Security = "max-age=63072000; includeSubDomains; preload"
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"

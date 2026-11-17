@@ -29,3 +29,17 @@ export function usePlans(careerId?: number) {
     .flatMap((c) => c.plans.map((p) => ({ ...p, careerName: c.name })));
   return plans.sort((a, b) => Number(b.isCurrent) - Number(a.isCurrent) || b.year - a.year);
 }
+
+/** Dominios de correo institucional aceptados (los define el backend). */
+export function useEmailDomains() {
+  const q = useQuery({
+    queryKey: ['auth-config'],
+    queryFn: () => api<{ allowedEmailDomains: string[] }>('/auth/config'),
+    staleTime: Infinity,
+  });
+  const domains = q.data?.allowedEmailDomains ?? [];
+  const isAllowed = (email: string) =>
+    domains.length === 0 || domains.includes(email.trim().toLowerCase().split('@')[1] ?? '');
+  const hint = domains.map((d) => `@${d}`).join(' o ');
+  return { domains, isAllowed, hint };
+}

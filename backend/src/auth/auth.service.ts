@@ -7,47 +7,64 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { EmailTokenType, Prisma } from '@prisma/client';
-import * as argon2 from 'argon2';
+import { EmailTokenType, Prisma, Role } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { generateToken, hashToken } from '../common/utils/crypto.util';
+import { blindIndex, decrypt, encrypt, encryptOptional } from '../common/utils/field-crypto';
+import { hashPassword, verifyPassword } from '../common/utils/password.util';
 import { LoginDto, RegisterDto } from './dto/auth.dto';
 
 const MAX_FAILED_LOGINS = 5;
 const LOCK_MINUTES = 15;
-const ARGON_OPTS = { type: argon2.argon2id, memoryCost: 19456, timeCost: 2, parallelism: 1 };
+const RESEND_COOLDOWN_MS = 60_000;
 
 export interface SessionMeta {
   ip?: string;
   userAgent?: string;
 }
 
+const parseDomains = (v?: string) =>
+  (v ?? '')
+    .split(',')
+    .map((d) => d.trim().toLowerCase())
+    .filter(Boolean);
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
-  private readonly allowedDomains: string[];
-  private dummyHash: Promise<string>;
+  readonly allowedDomains: string[];
+  private readonly professorDomains: string[];
+  private readonly refreshDays: number;
+  private readonly dummyHash: Promise<string>;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly mail: MailService,
-    private readonly config: ConfigService,
+    config: ConfigService,
   ) {
-    this.allowedDomains = (config.get<string>('ALLOWED_EMAIL_DOMAINS') ?? '')
-      .split(',')
-      .map((d) => d.trim().toLowerCase())
-      .filter(Boolean);
+    this.allowedDomains = parseDomains(config.get('ALLOWED_EMAIL_DOMAINS'));
+    this.professorDomains = parseDomains(config.get('PROFESSOR_EMAIL_DOMAINS'));
+    this.refreshDays = Number(config.get('REFRESH_TOKEN_TTL_DAYS') ?? 7);
     // Hash "señuelo" para que el login tarde lo mismo exista o no el usuario
-    this.dummyHash = argon2.hash(generateToken(16), ARGON_OPTS);
+    this.dummyHash = hashPassword(generateToken(16));
   }
 
-  private isAllowedEmail(email: string) {
+  private domainOf(email: string) {
+    return email.split('@')[1]?.toLowerCase() ?? '';
+  }
+
+  isAllowedEmail(email: string) {
     if (this.allowedDomains.length === 0) return true;
-    const domain = email.split('@')[1] ?? '';
-    return this.allowedDomains.includes(domain);
+    return this.allowedDomains.includes(this.domainOf(email));
+  }
+
+  private domainError() {
+    return new BadRequestException(
+      `Solo se aceptan correos institucionales: ${this.allowedDomains.map((d) => '@' + d).join(' o ')}`,
+    );
   }
 
   // ---------- Registro y verificación ----------
@@ -56,11 +73,8 @@ export class AuthService {
     const generic = {
       message: 'Si los datos son válidos, te enviamos un correo para confirmar tu cuenta.',
     };
-    if (!this.isAllowedEmail(dto.email)) {
-      throw new BadRequestException(
-        `Solo se aceptan correos institucionales (${this.allowedDomains.join(', ')})`,
-      );
-    }
+    if (!this.isAllowedEmail(dto.email)) throw this.domainError();
+
     if (dto.careerId) {
       const career = await this.prisma.career.findUnique({ where: { id: dto.careerId } });
       if (!career) throw new BadRequestException('Carrera inexistente');
@@ -72,26 +86,42 @@ export class AuthService {
       }
     }
 
+    // Los correos del dominio docente quedan registrados como DOCENTE automáticamente
+    const role = this.professorDomains.includes(this.domainOf(dto.email)) ? Role.PROFESSOR : Role.STUDENT;
+
+    let userId: string;
     try {
       const user = await this.prisma.user.create({
         data: {
-          email: dto.email,
-          passwordHash: await argon2.hash(dto.password, ARGON_OPTS),
+          emailEnc: encrypt(dto.email),
+          emailHash: blindIndex(dto.email),
+          passwordHash: await hashPassword(dto.password),
           firstName: dto.firstName,
           lastName: dto.lastName,
-          legajo: dto.legajo,
+          legajoEnc: encryptOptional(dto.legajo),
+          legajoHash: dto.legajo ? blindIndex(dto.legajo) : null,
+          role,
           careerId: dto.careerId,
           studyPlanId: dto.studyPlanId,
         },
+        select: { id: true },
       });
-      await this.issueEmailToken(user.id, user.email, EmailTokenType.VERIFY_EMAIL);
+      userId = user.id;
     } catch (e) {
       // Correo o legajo ya registrados: respuesta idéntica para no revelar qué cuentas existen
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-        this.logger.warn(`Intento de registro duplicado para ${dto.email}`);
+        this.logger.warn('Intento de registro con correo o legajo ya existente');
         return generic;
       }
       throw e;
+    }
+    try {
+      await this.issueEmailToken(userId, dto.email, EmailTokenType.VERIFY_EMAIL);
+    } catch {
+      return {
+        message:
+          'Tu cuenta se creó, pero no pudimos enviar el correo de verificación. Usá "Reenviar correo de verificación" en la pantalla de ingreso.',
+      };
     }
     return generic;
   }
@@ -116,7 +146,7 @@ export class AuthService {
       where: { tokenHash: hashToken(token) },
     });
     if (!record || record.type !== type || record.usedAt || record.expiresAt < new Date()) {
-      throw new BadRequestException('El enlace es inválido o venció');
+      throw new BadRequestException('El enlace es inválido o venció. Pedí uno nuevo.');
     }
     await this.prisma.emailToken.update({ where: { id: record.id }, data: { usedAt: new Date() } });
     return record;
@@ -131,10 +161,27 @@ export class AuthService {
     return { message: 'Correo confirmado. Ya podés iniciar sesión.' };
   }
 
+  /** Reenvía el correo de verificación (respuesta genérica, con espera mínima entre envíos). */
+  async resendVerification(email: string) {
+    const generic = { message: 'Si la cuenta existe y no está verificada, te reenviamos el correo.' };
+    if (!this.isAllowedEmail(email)) throw this.domainError();
+    const user = await this.prisma.user.findUnique({ where: { emailHash: blindIndex(email) } });
+    if (!user || user.emailVerifiedAt || !user.isActive) return generic;
+
+    const last = await this.prisma.emailToken.findFirst({
+      where: { userId: user.id, type: EmailTokenType.VERIFY_EMAIL },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (last && Date.now() - last.createdAt.getTime() < RESEND_COOLDOWN_MS) return generic;
+
+    await this.issueEmailToken(user.id, email, EmailTokenType.VERIFY_EMAIL);
+    return generic;
+  }
+
   async forgotPassword(email: string) {
-    const user = await this.prisma.user.findUnique({ where: { email } });
+    const user = await this.prisma.user.findUnique({ where: { emailHash: blindIndex(email) } });
     if (user && user.isActive) {
-      await this.issueEmailToken(user.id, user.email, EmailTokenType.RESET_PASSWORD);
+      await this.issueEmailToken(user.id, decrypt(user.emailEnc)!, EmailTokenType.RESET_PASSWORD);
     }
     return { message: 'Si el correo está registrado, te enviamos instrucciones.' };
   }
@@ -145,7 +192,7 @@ export class AuthService {
       this.prisma.user.update({
         where: { id: record.userId },
         data: {
-          passwordHash: await argon2.hash(password, ARGON_OPTS),
+          passwordHash: await hashPassword(password),
           failedLoginCount: 0,
           lockedUntil: null,
           // Si pudo leer el correo, el email queda verificado
@@ -166,10 +213,15 @@ export class AuthService {
 
   async login(dto: LoginDto, meta: SessionMeta) {
     const invalid = new UnauthorizedException('Correo o contraseña incorrectos');
-    const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    const user = await this.prisma.user.findUnique({ where: { emailHash: blindIndex(dto.email) } });
+
+    // Solo correos institucionales (la cuenta de administración queda exceptuada)
+    if (!this.isAllowedEmail(dto.email) && user?.role !== Role.ADMIN) {
+      throw this.domainError();
+    }
 
     if (!user) {
-      await argon2.verify(await this.dummyHash, dto.password).catch(() => false);
+      await verifyPassword(await this.dummyHash, dto.password);
       throw invalid;
     }
     if (user.lockedUntil && user.lockedUntil > new Date()) {
@@ -178,7 +230,7 @@ export class AuthService {
       );
     }
 
-    const ok = await argon2.verify(user.passwordHash, dto.password);
+    const ok = await verifyPassword(user.passwordHash, dto.password);
     if (!ok) {
       const failed = user.failedLoginCount + 1;
       await this.prisma.user.update({
@@ -194,7 +246,12 @@ export class AuthService {
     }
     if (!user.isActive) throw new ForbiddenException('La cuenta está suspendida');
     if (!user.emailVerifiedAt) {
-      throw new ForbiddenException('Tenés que confirmar tu correo antes de ingresar');
+      // El código permite al frontend ofrecer "reenviar correo de verificación"
+      throw new ForbiddenException({
+        statusCode: 403,
+        code: 'EMAIL_NOT_VERIFIED',
+        message: 'Tenés que confirmar tu correo antes de ingresar. Revisá tu bandeja (y la carpeta de spam).',
+      });
     }
 
     if (user.failedLoginCount > 0 || user.lockedUntil) {
@@ -210,22 +267,21 @@ export class AuthService {
   private async createSession(userId: string, familyId: string, meta: SessionMeta) {
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
-      select: { id: true, email: true, role: true, firstName: true, lastName: true },
+      select: { id: true, role: true, firstName: true, lastName: true },
     });
     const accessToken = await this.jwt.signAsync({ sub: user.id, role: user.role });
     const refreshToken = generateToken();
-    const days = Number(this.config.get('REFRESH_TOKEN_TTL_DAYS') ?? 7);
     await this.prisma.refreshToken.create({
       data: {
         userId,
         familyId,
         tokenHash: hashToken(refreshToken),
-        expiresAt: new Date(Date.now() + days * 86400_000),
+        expiresAt: new Date(Date.now() + this.refreshDays * 86400_000),
         ip: meta.ip,
         userAgent: meta.userAgent?.slice(0, 255),
       },
     });
-    return { accessToken, refreshToken, refreshMaxAgeMs: days * 86400_000, user };
+    return { accessToken, refreshToken, refreshMaxAgeMs: this.refreshDays * 86400_000, user };
   }
 
   /** Rotación de refresh token con detección de reutilización (robo de token). */

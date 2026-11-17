@@ -4,14 +4,23 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { assertEncryptionKey } from './common/utils/field-crypto';
 
 async function bootstrap() {
+  // Falla al arrancar si falta la clave de cifrado (mejor que fallar con datos a medio guardar)
+  assertEncryptionKey();
+  for (const v of ['JWT_ACCESS_SECRET', 'PASSWORD_PEPPER']) {
+    if (!process.env[v] || process.env[v]!.length < 32) {
+      throw new Error(`Falta ${v} o es demasiado corto (mínimo 32 caracteres)`);
+    }
+  }
+
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: ['error', 'warn', 'log'],
   });
 
-  // Detrás de nginx / proxy: necesario para obtener la IP real (rate limit, auditoría)
-  app.set('trust proxy', 1);
+  // Detrás de nginx / Vercel: necesario para obtener la IP real (rate limit, auditoría)
+  app.set('trust proxy', process.env.VERCEL ? true : 1);
   app.disable('x-powered-by');
 
   app.use(

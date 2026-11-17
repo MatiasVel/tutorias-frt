@@ -38,14 +38,14 @@ export default function MyClasses() {
   };
 
   const tabCls = (t: Tab) =>
-    `flex-1 rounded-lg px-4 py-2 text-sm font-semibold sm:flex-none ${tab === t ? 'bg-white text-brand-900 shadow' : 'text-slate-600'}`;
+    `flex-1 rounded-lg px-4 py-2 text-sm font-semibold sm:flex-none ${tab === t ? 'bg-white text-ink shadow' : 'text-zinc-600'}`;
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-brand-900">Mis clases</h1>
+      <h1 className="section-title text-2xl">Mis clases</h1>
       {justBooked && <Alert kind="success">¡Solicitud enviada! Te avisamos acá cuando la confirmen.</Alert>}
 
-      <div className="flex gap-1 rounded-xl bg-slate-200 p-1 sm:inline-flex" role="tablist">
+      <div className="flex gap-1 rounded-xl bg-zinc-200 p-1 sm:inline-flex" role="tablist">
         <button role="tab" aria-selected={tab === 'student'} className={tabCls('student')} onClick={() => setTab('student')}>
           Clases que tomo
         </button>
@@ -85,17 +85,17 @@ export default function MyClasses() {
               <li key={b.id} className="card space-y-3">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <p className="font-bold text-slate-900">{b.offering.subject.name}</p>
-                    <p className="text-sm text-slate-500">
+                    <p className="font-bold text-zinc-900">{b.offering.subject.name}</p>
+                    <p className="text-sm text-zinc-500">
                       {dateTime(b.scheduledAt)} · {b.durationMinutes} min · {modalityLabel[b.offering.modality]}
                     </p>
                   </div>
                   <StatusBadge status={b.status} />
                 </div>
 
-                <div className="rounded-lg bg-slate-50 p-3 text-sm">
+                <div className="rounded-lg bg-zinc-50 p-3 text-sm">
                   <p>
-                    <span className="text-slate-500">{tab === 'student' ? 'Da la clase:' : 'Alumno/a:'}</span>{' '}
+                    <span className="text-zinc-500">{tab === 'student' ? 'Da la clase:' : 'Alumno/a:'}</span>{' '}
                     <Link to={`/usuarios/${other.id}`} className="font-semibold text-brand-700 hover:underline">
                       {other.firstName} {other.lastName}
                     </Link>
@@ -113,7 +113,7 @@ export default function MyClasses() {
                   )}
                 </div>
 
-                {b.message && <p className="text-sm italic text-slate-600">“{b.message}”</p>}
+                {b.message && <p className="text-sm italic text-zinc-600">“{b.message}”</p>}
                 <p className="text-sm">
                   Total: <strong>{money(b.priceAgreed)}</strong>
                 </p>
@@ -145,7 +145,7 @@ export default function MyClasses() {
                     </button>
                   )}
                   {b.myReview && (
-                    <p className="text-sm text-slate-500">
+                    <p className="text-sm text-zinc-500">
                       Tu puntuación: <strong>{b.myReview.rating}/5</strong>
                     </p>
                   )}
