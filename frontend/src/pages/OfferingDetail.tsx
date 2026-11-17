@@ -59,7 +59,9 @@ export default function OfferingDetail() {
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
       <div className="space-y-6 lg:col-span-2">
         <div className="card space-y-4">
-          <p className="text-sm font-semibold uppercase tracking-wide text-brand-700">{o.subject.year}° año</p>
+          <p className="text-sm font-semibold uppercase tracking-wide text-brand-700">
+            {o.subject.year}° año{o.subject.plan ? ` · Plan ${o.subject.plan.year}` : ''}
+          </p>
           <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">{o.subject.name}</h1>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600">
             <span>{modalityLabel[o.modality]}</span>

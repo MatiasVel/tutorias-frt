@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { api, json } from '../api/client';
-import { useCareers } from '../api/hooks';
+import { useCareers, usePlans } from '../api/hooks';
 import { Alert, Field } from '../components/ui';
 
 const rules = [
@@ -13,12 +13,13 @@ const rules = [
 
 export default function Register() {
   const careers = useCareers();
-  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', legajo: '', careerId: '', password: '', confirm: '' });
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', legajo: '', careerId: '', studyPlanId: '', password: '', confirm: '' });
   const [accept, setAccept] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState('');
   const [busy, setBusy] = useState(false);
 
+  const plans = usePlans(form.careerId ? Number(form.careerId) : undefined);
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value });
   const passwordOk = rules.every((r) => r.test(form.password));
 
@@ -39,6 +40,7 @@ export default function Register() {
           password: form.password,
           legajo: form.legajo || undefined,
           careerId: form.careerId ? Number(form.careerId) : undefined,
+          studyPlanId: form.studyPlanId ? Number(form.studyPlanId) : undefined,
         }),
       });
       setDone(res.message);
@@ -85,7 +87,7 @@ export default function Register() {
             <input id="legajo" inputMode="numeric" pattern="[0-9]{4,10}" className="input" value={form.legajo} onChange={set('legajo')} />
           </Field>
           <Field label="Carrera" htmlFor="career">
-            <select id="career" className="input" value={form.careerId} onChange={set('careerId')}>
+            <select id="career" className="input" value={form.careerId} onChange={(e) => setForm({ ...form, careerId: e.target.value, studyPlanId: '' })}>
               <option value="">Seleccioná…</option>
               {careers.data?.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -94,6 +96,21 @@ export default function Register() {
               ))}
             </select>
           </Field>
+          {form.careerId && plans.length > 0 && (
+            <div className="sm:col-span-2">
+              <Field label="Plan de estudios" htmlFor="plan">
+                <select id="plan" className="input" value={form.studyPlanId} onChange={set('studyPlanId')}>
+                  <option value="">Seleccioná…</option>
+                  {plans.map((pl) => (
+                    <option key={pl.id} value={pl.id}>
+                      Plan {pl.year}
+                      {pl.isCurrent ? ' (vigente)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+          )}
           <Field label="Contraseña" htmlFor="password">
             <input id="password" type="password" required autoComplete="new-password" className="input" value={form.password} onChange={set('password')} />
           </Field>

@@ -20,7 +20,9 @@ const publicOfferingSelect = {
   finalGrade: true,
   approvedAt: true,
   createdAt: true,
-  subject: { select: { id: true, name: true, year: true, code: true } },
+  subject: {
+    select: { id: true, name: true, year: true, code: true, plan: { select: { id: true, year: true } } },
+  },
   tutor: { select: publicUserSelect },
 } satisfies Prisma.OfferingSelect;
 
@@ -39,7 +41,7 @@ export class OfferingsService {
       // Quien busca "virtual" también ve a quienes ofrecen ambas modalidades
       modality: dto.modality ? { in: [dto.modality, Modality.AMBAS] } : undefined,
       pricePerHour: dto.maxPrice !== undefined ? { lte: dto.maxPrice } : undefined,
-      subject: dto.careerId ? { careers: { some: { id: dto.careerId } } } : undefined,
+      subject: dto.careerId || dto.planId ? { planId: dto.planId, plan: dto.careerId ? { careerId: dto.careerId } : undefined } : undefined,
       OR: dto.q
         ? [
             { subject: { name: { contains: dto.q, mode: 'insensitive' } } },
@@ -94,7 +96,7 @@ export class OfferingsService {
         status: true,
         reviewNote: true,
         createdAt: true,
-        subject: { select: { id: true, name: true, year: true } },
+        subject: { select: { id: true, name: true, year: true, plan: { select: { year: true } } } },
         _count: { select: { bookings: true } },
       },
     });

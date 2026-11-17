@@ -65,6 +65,12 @@ export class AuthService {
       const career = await this.prisma.career.findUnique({ where: { id: dto.careerId } });
       if (!career) throw new BadRequestException('Carrera inexistente');
     }
+    if (dto.studyPlanId) {
+      const plan = await this.prisma.studyPlan.findUnique({ where: { id: dto.studyPlanId } });
+      if (!plan || (dto.careerId && plan.careerId !== dto.careerId)) {
+        throw new BadRequestException('El plan de estudios no corresponde a la carrera');
+      }
+    }
 
     try {
       const user = await this.prisma.user.create({
@@ -75,6 +81,7 @@ export class AuthService {
           lastName: dto.lastName,
           legajo: dto.legajo,
           careerId: dto.careerId,
+          studyPlanId: dto.studyPlanId,
         },
       });
       await this.issueEmailToken(user.id, user.email, EmailTokenType.VERIFY_EMAIL);

@@ -82,6 +82,11 @@ export class SearchOfferingsDto {
   careerId?: number;
 
   @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  planId?: number;
+
+  @IsOptional()
   @Transform(trim)
   @IsString()
   @MaxLength(80)

@@ -27,6 +27,10 @@ export class UsersService {
       const exists = await this.prisma.career.findUnique({ where: { id: dto.careerId } });
       if (!exists) throw new BadRequestException('Carrera inexistente');
     }
+    if (dto.studyPlanId) {
+      const plan = await this.prisma.studyPlan.findUnique({ where: { id: dto.studyPlanId } });
+      if (!plan) throw new BadRequestException('Plan de estudios inexistente');
+    }
     await this.prisma.user.update({ where: { id }, data: dto });
     return this.getMe(id);
   }
@@ -44,7 +48,7 @@ export class UsersService {
             pricePerHour: true,
             modality: true,
             finalGrade: true,
-            subject: { select: { id: true, name: true, year: true } },
+            subject: { select: { id: true, name: true, year: true, plan: { select: { year: true } } } },
           },
         },
         reviewsReceived: {

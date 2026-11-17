@@ -19,4 +19,9 @@ export class UpdateProfileDto {
   @IsInt()
   @Min(1)
   careerId?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  studyPlanId?: number;
 }

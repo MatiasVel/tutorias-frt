@@ -4,17 +4,28 @@ export type OfferingStatus = 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'PAUSE
 export type BookingStatus = 'PENDING' | 'CONFIRMED' | 'REJECTED' | 'CANCELLED' | 'COMPLETED';
 export type ReviewDirection = 'STUDENT_TO_TUTOR' | 'TUTOR_TO_STUDENT';
 
+export interface StudyPlan {
+  id: number;
+  year: number;
+  name: string;
+  isCurrent: boolean;
+}
+
 export interface Career {
   id: number;
   name: string;
   code: string;
+  plans: StudyPlan[];
 }
 
 export interface Subject {
   id: number;
   name: string;
   code?: string;
+  planCode?: number | null;
   year: number;
+  isElective?: boolean;
+  plan?: { id?: number; year: number; isCurrent?: boolean };
 }
 
 export interface PublicUser {
@@ -28,6 +39,7 @@ export interface PublicUser {
   studentRatingAvg: number;
   studentRatingCount: number;
   career?: { id: number; name: string } | null;
+  studyPlan?: { id: number; year: number } | null;
 }
 
 export interface Me extends PublicUser {

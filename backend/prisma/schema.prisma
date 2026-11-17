@@ -63,7 +63,9 @@ model User {
   studentRatingCount Int       @default(0)
 
   careerId           Int?
-  career             Career?   @relation(fields: [careerId], references: [id])
+  career             Career?    @relation(fields: [careerId], references: [id])
+  studyPlanId        Int?
+  studyPlan          StudyPlan? @relation(fields: [studyPlanId], references: [id])
 
   offerings          Offering[]
   bookingsAsStudent  Booking[]       @relation("StudentBookings")
@@ -78,22 +80,71 @@ model User {
 }
 
 model Career {
-  id       Int       @id @default(autoincrement())
-  name     String    @unique
-  code     String    @unique
-  subjects Subject[]
-  users    User[]
+  id    Int         @id @default(autoincrement())
+  name  String      @unique
+  code  String      @unique
+  plans StudyPlan[]
+  users User[]
+}
+
+// Plan de estudios de una carrera (ej.: ISI Plan 2008, ISI Plan 2023)
+model StudyPlan {
+  id         Int       @id @default(autoincrement())
+  careerId   Int
+  career     Career    @relation(fields: [careerId], references: [id])
+  year       Int
+  name       String
+  resolution String?
+  isCurrent  Boolean   @default(false) // plan vigente para ingresantes
+  subjects   Subject[]
+  users      User[]
+
+  @@unique([careerId, year])
+}
+
+enum Term {
+  ANUAL
+  PRIMER_CUATRIMESTRE
+  SEGUNDO_CUATRIMESTRE
+  AMBOS_CUATRIMESTRES // electivas que se dictan en los dos cuatrimestres
 }
 
 model Subject {
-  id        Int        @id @default(autoincrement())
-  name      String
-  code      String     @unique
-  year      Int        // nivel / año de la carrera
-  careers   Career[]
-  offerings Offering[]
+  id            Int                   @id @default(autoincrement())
+  code          String                @unique // ej.: ISI-2023-19 / ISI-2023-E4-02
+  planCode      Int?                  // número de la materia dentro del plan (null en electivas)
+  name          String
+  year          Int                   // nivel / año de la carrera
+  isElective    Boolean               @default(false)
+  isIntegrating Boolean               @default(false) // materia integradora
+  weeklyHours   Int?
+  term          Term?
+  planId        Int
+  plan          StudyPlan             @relation(fields: [planId], references: [id])
+  offerings     Offering[]
+  prerequisites SubjectPrerequisite[] @relation("SubjectPrereqs")
+  requiredFor   SubjectPrerequisite[] @relation("RequiredSubject")
 
+  @@unique([planId, planCode])
   @@index([name])
+}
+
+enum PrerequisiteType {
+  REGULAR_PARA_CURSAR  // correlativa que debe estar cursada (regular) para cursar
+  APROBADA_PARA_CURSAR // correlativa que debe estar aprobada para cursar
+  APROBADA_PARA_RENDIR // correlativa que debe estar aprobada para rendir el final
+}
+
+// Correlatividades: "subject" requiere "required" en la condición "type"
+model SubjectPrerequisite {
+  subjectId  Int
+  subject    Subject          @relation("SubjectPrereqs", fields: [subjectId], references: [id], onDelete: Cascade)
+  requiredId Int
+  required   Subject          @relation("RequiredSubject", fields: [requiredId], references: [id], onDelete: Cascade)
+  type       PrerequisiteType
+
+  @@id([subjectId, requiredId, type])
+  @@index([requiredId])
 }
 
 // Una "oferta" = una persona ofreciendo clases de una materia que ya aprobó

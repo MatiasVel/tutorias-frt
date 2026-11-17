@@ -2,15 +2,17 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { api } from '../api/client';
-import { useCareers, useSubjects } from '../api/hooks';
+import { useCareers, usePlans, useSubjects } from '../api/hooks';
 import type { Modality, Offering, Paginated } from '../api/types';
 import OfferingCard from '../components/OfferingCard';
+import SubjectSelect from '../components/SubjectSelect';
 import { Alert, EmptyState, Spinner } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 
 export default function Home() {
   const { user } = useAuth();
   const [careerId, setCareerId] = useState<number | undefined>(user?.career?.id);
+  const [planId, setPlanId] = useState<number | undefined>();
   const [subjectId, setSubjectId] = useState<number | undefined>();
   const [modality, setModality] = useState<Modality | ''>('');
   const [sort, setSort] = useState('rating');
@@ -19,10 +21,12 @@ export default function Home() {
   const [page, setPage] = useState(1);
 
   const careers = useCareers();
-  const subjects = useSubjects(careerId);
+  const plans = usePlans(careerId);
+  const subjects = useSubjects(careerId, planId);
 
   const params = new URLSearchParams();
   if (careerId) params.set('careerId', String(careerId));
+  if (planId) params.set('planId', String(planId));
   if (subjectId) params.set('subjectId', String(subjectId));
   if (modality) params.set('modality', modality);
   if (query) params.set('q', query);
@@ -77,13 +81,14 @@ export default function Home() {
         )}
       </section>
 
-      <section aria-label="Filtros" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <section aria-label="Filtros" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <select
           aria-label="Carrera"
           className="input"
           value={careerId ?? ''}
           onChange={(e) => {
             setCareerId(e.target.value ? Number(e.target.value) : undefined);
+            setPlanId(undefined);
             setSubjectId(undefined);
             setPage(1);
           }}
@@ -96,21 +101,33 @@ export default function Home() {
           ))}
         </select>
         <select
-          aria-label="Materia"
+          aria-label="Plan de estudios"
           className="input"
-          value={subjectId ?? ''}
+          value={planId ?? ''}
           onChange={(e) => {
-            setSubjectId(e.target.value ? Number(e.target.value) : undefined);
+            setPlanId(e.target.value ? Number(e.target.value) : undefined);
+            setSubjectId(undefined);
             setPage(1);
           }}
         >
-          <option value="">Todas las materias</option>
-          {subjects.data?.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.year}° · {s.name}
+          <option value="">Todos los planes</option>
+          {plans.map((pl) => (
+            <option key={pl.id} value={pl.id}>
+              Plan {pl.year}
+              {pl.isCurrent ? ' (vigente)' : ''}
             </option>
           ))}
         </select>
+        <SubjectSelect
+          id="subject-filter"
+          subjects={subjects.data ?? []}
+          value={subjectId ? String(subjectId) : ''}
+          placeholder="Todas las materias"
+          onChange={(v) => {
+            setSubjectId(v ? Number(v) : undefined);
+            setPage(1);
+          }}
+        />
         <select
           aria-label="Modalidad"
           className="input"

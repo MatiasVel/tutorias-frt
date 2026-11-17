@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, json } from '../api/client';
-import { useCareers, useSubjects } from '../api/hooks';
+import { useCareers, usePlans, useSubjects } from '../api/hooks';
+import SubjectSelect from '../components/SubjectSelect';
 import type { Modality, MyOffering } from '../api/types';
 import { useAuth } from '../context/AuthContext';
 import { Alert, EmptyState, Field, Spinner, StatusBadge, modalityLabel, money } from '../components/ui';
@@ -12,7 +13,10 @@ function NewOfferingForm({ onDone }: { onDone: () => void }) {
   const { user } = useAuth();
   const careers = useCareers();
   const [careerId, setCareerId] = useState<number | undefined>(user?.career?.id);
-  const subjects = useSubjects(careerId);
+  const plans = usePlans(careerId);
+  const [planId, setPlanId] = useState<number | undefined>(user?.studyPlan?.id);
+  const effectivePlanId = planId ?? plans[0]?.id;
+  const subjects = useSubjects(careerId, effectivePlanId);
   const [form, setForm] = useState({ subjectId: '', pricePerHour: '', modality: 'AMBAS' as Modality, description: '', finalGrade: '', approvedAt: '' });
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState('');
@@ -49,7 +53,16 @@ function NewOfferingForm({ onDone }: { onDone: () => void }) {
         </div>
       )}
       <Field label="Carrera" htmlFor="career">
-        <select id="career" className="input" value={careerId ?? ''} onChange={(e) => setCareerId(e.target.value ? Number(e.target.value) : undefined)}>
+        <select
+          id="career"
+          className="input"
+          value={careerId ?? ''}
+          onChange={(e) => {
+            setCareerId(e.target.value ? Number(e.target.value) : undefined);
+            setPlanId(undefined);
+            setForm((f) => ({ ...f, subjectId: '' }));
+          }}
+        >
           <option value="">Todas</option>
           {careers.data?.map((c) => (
             <option key={c.id} value={c.id}>
@@ -58,16 +71,36 @@ function NewOfferingForm({ onDone }: { onDone: () => void }) {
           ))}
         </select>
       </Field>
-      <Field label="Materia aprobada" htmlFor="subject">
-        <select id="subject" required className="input" value={form.subjectId} onChange={set('subjectId')}>
-          <option value="">Seleccioná…</option>
-          {subjects.data?.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.year}° · {s.name}
+      <Field label="Plan de estudios" htmlFor="plan" hint="El plan con el que cursaste la materia.">
+        <select
+          id="plan"
+          className="input"
+          value={effectivePlanId ?? ''}
+          onChange={(e) => {
+            setPlanId(Number(e.target.value));
+            setForm((f) => ({ ...f, subjectId: '' }));
+          }}
+        >
+          {plans.map((pl) => (
+            <option key={pl.id} value={pl.id}>
+              Plan {pl.year}
+              {pl.isCurrent ? ' (vigente)' : ''}
             </option>
           ))}
         </select>
       </Field>
+      <div className="sm:col-span-2">
+        <Field label="Materia aprobada" htmlFor="subject">
+          <SubjectSelect
+            id="subject"
+            required
+            subjects={subjects.data ?? []}
+            value={form.subjectId}
+            placeholder="Seleccioná…"
+            onChange={(v) => setForm((f) => ({ ...f, subjectId: v }))}
+          />
+        </Field>
+      </div>
       <Field label="Nota de aprobación" htmlFor="grade">
         <input id="grade" type="number" min={4} max={10} required className="input" value={form.finalGrade} onChange={set('finalGrade')} />
       </Field>
@@ -163,7 +196,10 @@ export default function MyOfferings() {
           {offerings.data?.map((o) => (
             <li key={o.id} className="card space-y-2">
               <div className="flex items-start justify-between gap-2">
-                <p className="font-bold">{o.subject.name}</p>
+                <p className="font-bold">
+                  {o.subject.name}
+                  {o.subject.plan && <span className="ml-1 text-xs font-normal text-slate-500">Plan {o.subject.plan.year}</span>}
+                </p>
                 <StatusBadge status={o.status} />
               </div>
               <p className="text-sm text-slate-600">

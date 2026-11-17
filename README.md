@@ -11,7 +11,8 @@ Plataforma web para que estudiantes (y docentes) de la **UTN – Facultad Region
 | Módulo | Qué hace |
 |---|---|
 | Registro / ingreso | Solo correos institucionales, verificación por email, recuperación de contraseña |
-| Buscar clases | Filtros por carrera, materia, modalidad, texto; orden por puntuación o precio |
+| Buscar clases | Filtros por carrera, plan de estudios, materia, modalidad, texto; orden por puntuación o precio |
+| Planes de estudio | ISI Plan 2023 (vigente) y Plan 2008 cargados con niveles, carga horaria, electivas y correlativas |
 | Dar clases | Publicar una materia aprobada con nota, fecha y comprobante (analítico / SYSACAD) |
 | Validación | La administración revisa el comprobante y aprueba o rechaza con motivo |
 | Reservas | Solicitar → aceptar/rechazar → dictar → finalizar. Control de superposición de horarios |
@@ -27,7 +28,7 @@ backend/   NestJS 11 + Prisma 6 + PostgreSQL 16
 docker-compose.yml  db + backend + frontend (nginx sirve el front y hace proxy de /api)
 ```
 
-**Modelo de datos principal:** `User` · `Career` · `Subject` (N:M con carreras) · `Offering` (tutor + materia) · `Booking` (clase) · `Review` (bidireccional) · `RefreshToken` · `EmailToken` · `AuditLog`.
+**Modelo de datos principal:** `User` · `Career` · `StudyPlan` (Plan 2008 / Plan 2023) · `Subject` · `SubjectPrerequisite` (correlativas) · `Offering` (tutor + materia) · `Booking` (clase) · `Review` (bidireccional) · `RefreshToken` · `EmailToken` · `AuditLog`.
 
 Flujo de una clase:
 
@@ -127,20 +128,19 @@ Usá dos navegadores distintos (o una ventana normal y otra de incógnito) para 
 - Entrar a `/admin` con un usuario común → redirige al inicio.
 - Subir un `.txt` renombrado a `.pdf` como comprobante → se rechaza.
 
-### 8. Explorar la base de datos (útil para análisis de datos)
+### 8. Ver la base de datos con pgAdmin
 
-```bash
-docker compose exec db psql -U tutorias -d tutorias_frt
-```
+La base queda publicada **solo en tu PC** en el puerto **5433** (para no chocar con un PostgreSQL local en 5432).
+En pgAdmin: *Register → Server* con host `localhost`, puerto `5433`, base `tutorias_frt`, usuario `tutorias`
+y la clave de `POSTGRES_PASSWORD`.
+
+👉 Guía completa, diagrama entidad-relación y consultas SQL listas para usar: **[docs/BASE_DE_DATOS.md](docs/BASE_DE_DATOS.md)**
+
+Para ver que un usuario quedó registrado:
 
 ```sql
-\dt                                            -- lista de tablas
-SELECT "firstName", "tutorRatingAvg", "tutorRatingCount" FROM "User";
-SELECT status, count(*) FROM "Booking" GROUP BY status;
+SELECT "email", "firstName", "role", "emailVerifiedAt", "createdAt" FROM "User" ORDER BY "createdAt" DESC;
 ```
-
-También podés conectar DBeaver o pgAdmin: descomentá `ports: ["127.0.0.1:5432:5432"]` en el servicio `db`
-de `docker-compose.yml` y volvé a correr `docker compose up -d`.
 
 ### 9. Apagar / reiniciar
 
@@ -157,6 +157,8 @@ docker compose down -v     # apaga y BORRA la base y los archivos subidos (empez
 | Al recargar la página se cierra la sesión | Entrá por `http://localhost:8080`, no por la IP |
 | El backend se reinicia en bucle | `docker compose logs backend`: casi siempre falta una variable en `.env` |
 | Cambié el código y no se ve | `docker compose up --build -d` |
+| Después de actualizar el repo el backend no arranca y el log menciona *data loss* | Cambió la estructura de la base: `docker compose down -v` y luego los pasos 4 y 5 (se borran los datos de prueba) |
+| pgAdmin no conecta en el puerto 5433 | Verificá que `docker compose ps` muestre `127.0.0.1:5433->5432` en el servicio `db` |
 
 ### Desarrollo sin Docker (opcional)
 

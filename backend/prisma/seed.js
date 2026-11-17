@@ -1,77 +1,96 @@
 // Seed en JavaScript plano: corre en producción sin TypeScript.
+// Es idempotente: se puede ejecutar varias veces sin duplicar datos.
 const { PrismaClient, Role } = require('@prisma/client');
 const argon2 = require('argon2');
+const isi = require('./data/planes-isi');
 
 const prisma = new PrismaClient();
 
-// NOTA: carreras y materias de ejemplo. Ajustar al plan de estudios vigente de UTN FRT.
-const careers = [
-  { code: 'ISI', name: 'Ingeniería en Sistemas de Información' },
-  { code: 'IC', name: 'Ingeniería Civil' },
-  { code: 'IE', name: 'Ingeniería Eléctrica' },
-  { code: 'IEL', name: 'Ingeniería Electrónica' },
-  { code: 'IM', name: 'Ingeniería Mecánica' },
-  { code: 'II', name: 'Ingeniería Industrial' },
-];
-
-// Materias del ciclo básico, compartidas por todas las ingenierías
-const common = [
-  { code: 'AM1', name: 'Análisis Matemático I', year: 1 },
-  { code: 'AGA', name: 'Álgebra y Geometría Analítica', year: 1 },
-  { code: 'FIS1', name: 'Física I', year: 1 },
-  { code: 'QG', name: 'Química General', year: 1 },
-  { code: 'IYS', name: 'Ingeniería y Sociedad', year: 1 },
-  { code: 'AM2', name: 'Análisis Matemático II', year: 2 },
-  { code: 'FIS2', name: 'Física II', year: 2 },
-  { code: 'PYE', name: 'Probabilidad y Estadística', year: 2 },
-];
-
-const byCareer = {
-  ISI: [
-    { code: 'AED', name: 'Algoritmos y Estructuras de Datos', year: 1 },
-    { code: 'MAD', name: 'Matemática Discreta', year: 1 },
-    { code: 'ARQ', name: 'Arquitectura de Computadoras', year: 1 },
-    { code: 'SYO', name: 'Sistemas y Organizaciones', year: 1 },
-    { code: 'PDP', name: 'Paradigmas de Programación', year: 2 },
-    { code: 'SSL', name: 'Sintaxis y Semántica de los Lenguajes', year: 2 },
-    { code: 'ASI', name: 'Análisis de Sistemas', year: 2 },
-    { code: 'SOP', name: 'Sistemas Operativos', year: 3 },
-    { code: 'GDD', name: 'Gestión de Datos', year: 3 },
-    { code: 'DSI', name: 'Diseño de Sistemas', year: 3 },
-  ],
-  IC: [
-    { code: 'SRE', name: 'Sistemas de Representación', year: 1 },
-    { code: 'EST', name: 'Estabilidad', year: 2 },
-  ],
-  IE: [{ code: 'ELT', name: 'Electrotecnia', year: 2 }],
-  IEL: [{ code: 'TCI', name: 'Teoría de Circuitos I', year: 2 }],
-  IM: [{ code: 'TER', name: 'Termodinámica', year: 3 }],
-  II: [{ code: 'ECO', name: 'Economía', year: 3 }],
+const TERM = {
+  A: 'ANUAL',
+  '1C': 'PRIMER_CUATRIMESTRE',
+  '2C': 'SEGUNDO_CUATRIMESTRE',
+  AC: 'AMBOS_CUATRIMESTRES',
 };
+const pad = (n) => String(n).padStart(2, '0');
+
+async function seedPlan(careerId, careerCode, plan) {
+  const studyPlan = await prisma.studyPlan.upsert({
+    where: { careerId_year: { careerId, year: plan.year } },
+    update: { name: plan.name, resolution: plan.resolution, isCurrent: plan.isCurrent },
+    create: {
+      careerId,
+      year: plan.year,
+      name: plan.name,
+      resolution: plan.resolution,
+      isCurrent: plan.isCurrent,
+    },
+  });
+
+  // 1) Materias
+  const byNumber = new Map(); // número en el plan -> id
+  const created = []; // [definición, id]
+  const electiveCounter = {};
+  for (const s of plan.subjects) {
+    let code = s.code;
+    if (!code && s.n) code = `${careerCode}-${plan.year}-${pad(s.n)}`;
+    if (!code) {
+      electiveCounter[s.lvl] = (electiveCounter[s.lvl] ?? 0) + 1;
+      code = `${careerCode}-${plan.year}-E${s.lvl}-${pad(electiveCounter[s.lvl])}`;
+    }
+    const data = {
+      name: s.name,
+      planCode: s.n ?? null,
+      year: s.lvl,
+      isElective: !!s.el,
+      isIntegrating: !!s.int,
+      weeklyHours: s.hs ?? null,
+      term: s.term ? TERM[s.term] : null,
+      planId: studyPlan.id,
+    };
+    const subject = await prisma.subject.upsert({
+      where: { code },
+      update: data,
+      create: { ...data, code },
+    });
+    if (s.n) byNumber.set(s.n, subject.id);
+    created.push([s, subject.id]);
+  }
+
+  // 2) Correlativas (se regeneran completas en cada ejecución)
+  await prisma.subjectPrerequisite.deleteMany({ where: { subject: { planId: studyPlan.id } } });
+  const rows = [];
+  const add = (subjectId, numbers, type, def) => {
+    if (!numbers) return;
+    let list = numbers;
+    if (numbers === 'ALL') {
+      // "Todas": todas las materias obligatorias hasta su nivel
+      list = plan.subjects.filter((x) => x.n && x.lvl <= def.lvl && x !== def).map((x) => x.n);
+    }
+    for (const n of list) {
+      const requiredId = byNumber.get(n);
+      if (!requiredId) throw new Error(`Plan ${plan.year}: "${def.name}" referencia la materia ${n}, que no existe`);
+      rows.push({ subjectId, requiredId, type });
+    }
+  };
+  for (const [def, id] of created) {
+    add(id, def.reg, 'REGULAR_PARA_CURSAR', def);
+    add(id, def.apr, 'APROBADA_PARA_CURSAR', def);
+    add(id, def.rend, 'APROBADA_PARA_RENDIR', def);
+  }
+  await prisma.subjectPrerequisite.createMany({ data: rows, skipDuplicates: true });
+
+  console.log(`  ${plan.name}: ${created.length} materias, ${rows.length} correlativas`);
+}
 
 async function main() {
-  for (const c of careers) {
-    await prisma.career.upsert({ where: { code: c.code }, update: { name: c.name }, create: c });
-  }
-  const allCareers = await prisma.career.findMany();
-
-  for (const s of common) {
-    await prisma.subject.upsert({
-      where: { code: s.code },
-      update: {},
-      create: { ...s, careers: { connect: allCareers.map((c) => ({ id: c.id })) } },
-    });
-  }
-  for (const [careerCode, subjects] of Object.entries(byCareer)) {
-    const career = allCareers.find((c) => c.code === careerCode);
-    for (const s of subjects) {
-      await prisma.subject.upsert({
-        where: { code: s.code },
-        update: {},
-        create: { ...s, careers: { connect: [{ id: career.id }] } },
-      });
-    }
-  }
+  const career = await prisma.career.upsert({
+    where: { code: isi.career.code },
+    update: { name: isi.career.name },
+    create: isi.career,
+  });
+  console.log(`Carrera: ${career.name}`);
+  for (const plan of isi.plans) await seedPlan(career.id, isi.career.code, plan);
 
   const email = process.env.SEED_ADMIN_EMAIL;
   const password = process.env.SEED_ADMIN_PASSWORD;

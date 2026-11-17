@@ -41,7 +41,7 @@ export class AdminService {
         proofFileName: true,
         reviewNote: true,
         createdAt: true,
-        subject: { select: { name: true, year: true } },
+        subject: { select: { name: true, year: true, plan: { select: { year: true } } } },
         tutor: {
           select: { id: true, firstName: true, lastName: true, email: true, legajo: true, role: true },
         },

@@ -48,6 +48,11 @@ export class RegisterDto {
   @IsInt()
   @Min(1)
   careerId?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  studyPlanId?: number;
 }
 
 export class LoginDto {

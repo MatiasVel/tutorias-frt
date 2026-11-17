@@ -15,4 +15,5 @@ export const publicUserSelect = {
   studentRatingAvg: true,
   studentRatingCount: true,
   career: { select: { id: true, name: true } },
+  studyPlan: { select: { id: true, year: true } },
 } satisfies Prisma.UserSelect;

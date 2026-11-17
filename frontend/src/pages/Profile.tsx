@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { api, json } from '../api/client';
-import { useCareers } from '../api/hooks';
+import { useCareers, usePlans } from '../api/hooks';
 import { useAuth } from '../context/AuthContext';
 import { RatingDisplay } from '../components/StarRating';
 import { Alert, Field } from '../components/ui';
@@ -12,6 +12,8 @@ export default function Profile() {
   const [phone, setPhone] = useState(user?.phone ?? '');
   const [bio, setBio] = useState(user?.bio ?? '');
   const [careerId, setCareerId] = useState(user?.career?.id ? String(user.career.id) : '');
+  const [studyPlanId, setStudyPlanId] = useState(user?.studyPlan?.id ? String(user.studyPlan.id) : '');
+  const plans = usePlans(careerId ? Number(careerId) : undefined);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   if (!user) return null;
@@ -22,7 +24,12 @@ export default function Profile() {
     try {
       await api('/users/me', {
         method: 'PATCH',
-        body: json({ phone: phone || undefined, bio, careerId: careerId ? Number(careerId) : undefined }),
+        body: json({
+          phone: phone || undefined,
+          bio,
+          careerId: careerId ? Number(careerId) : undefined,
+          studyPlanId: studyPlanId ? Number(studyPlanId) : undefined,
+        }),
       });
       await reloadUser();
       setMsg({ ok: true, text: 'Perfil actualizado' });
@@ -60,11 +67,30 @@ export default function Profile() {
         <h1 className="text-xl font-bold text-brand-900">Mis datos</h1>
         {msg && <Alert kind={msg.ok ? 'success' : 'error'}>{msg.text}</Alert>}
         <Field label="Carrera" htmlFor="career">
-          <select id="career" className="input" value={careerId} onChange={(e) => setCareerId(e.target.value)}>
+          <select
+            id="career"
+            className="input"
+            value={careerId}
+            onChange={(e) => {
+              setCareerId(e.target.value);
+              setStudyPlanId('');
+            }}
+          >
             <option value="">Seleccioná…</option>
             {careers.data?.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Plan de estudios" htmlFor="plan">
+          <select id="plan" className="input" value={studyPlanId} onChange={(e) => setStudyPlanId(e.target.value)}>
+            <option value="">Seleccioná…</option>
+            {plans.map((pl) => (
+              <option key={pl.id} value={pl.id}>
+                Plan {pl.year}
+                {pl.isCurrent ? ' (vigente)' : ''}
               </option>
             ))}
           </select>

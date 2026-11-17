@@ -27,7 +27,7 @@ export default function OfferingCard({ o }: { o: Offering }) {
       <div>
         <p className="text-base font-bold text-brand-900">{o.subject.name}</p>
         <p className="text-xs text-slate-500">
-          {o.subject.year}° año · Aprobada con {o.finalGrade} · {modalityLabel[o.modality]}
+          {o.subject.year}° año{o.subject.plan ? ` · Plan ${o.subject.plan.year}` : ''} · Aprobada con {o.finalGrade} · {modalityLabel[o.modality]}
         </p>
       </div>
       <p className="line-clamp-2 text-sm text-slate-600">{o.description}</p>
